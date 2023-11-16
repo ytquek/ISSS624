@@ -40,5 +40,19 @@
     "title": "Handson Exercise 1",
     "section": "",
     "text": "This is the getting started paragraph"
+  },
+  {
+    "objectID": "Hands-on_Ex1/Hands-onEx1a.html",
+    "href": "Hands-on_Ex1/Hands-onEx1a.html",
+    "title": "Hands-on Exercise 1: Geospatial Data Wrangling with R",
+    "section": "",
+    "text": "Overview\nIn this hands-on exercise, i learn how to import and wrangle geospatial data in using appropriate R packages.\nGetting Started\nThe code chunk below install and load sf and tidyverse packages into R environment.\n\npacman::p_load(sf, tidyverse)\n\nImporting Geospatial Data\nImporting Polygon feature data\n\nmpsz &lt;- st_read(dsn = \"data/geospatial\", \n                  layer = \"MP14_SUBZONE_WEB_PL\")\n\nReading layer `MP14_SUBZONE_WEB_PL' from data source \n  `/Users/youting/ytquek/ISSS624/Hands-on_Ex1/data/geospatial' \n  using driver `ESRI Shapefile'\nSimple feature collection with 323 features and 15 fields\nGeometry type: MULTIPOLYGON\nDimension:     XY\nBounding box:  xmin: 2667.538 ymin: 15748.72 xmax: 56396.44 ymax: 50256.33\nProjected CRS: SVY21"
+  },
+  {
+    "objectID": "Hands-on_Ex1/Hands-onEx1.html",
+    "href": "Hands-on_Ex1/Hands-onEx1.html",
+    "title": "Hands-on Exercise 1: Geospatial Data Wrangling with R",
+    "section": "",
+    "text": "Overview\nIn this hands-on exercise, i learn how to import and wrangle geospatial data in using appropriate R packages.\nGetting Started\nThe code chunk below install and load sf and tidyverse packages into R environment.\n\npacman::p_load(sf, tidyverse)\n\nImporting Geospatial Data\nImporting Polygon feature data\n\nmpsz &lt;- st_read(dsn = \"data/geospatial\", \n                  layer = \"MP14_SUBZONE_WEB_PL\")\n\nReading layer `MP14_SUBZONE_WEB_PL' from data source \n  `/Users/youting/ytquek/ISSS624/Hands-on_Ex1/data/geospatial' \n  using driver `ESRI Shapefile'\nSimple feature collection with 323 features and 15 fields\nGeometry type: MULTIPOLYGON\nDimension:     XY\nBounding box:  xmin: 2667.538 ymin: 15748.72 xmax: 56396.44 ymax: 50256.33\nProjected CRS: SVY21"
   }
 ]
