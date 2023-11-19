@@ -26,10 +26,11 @@ pacman::p_load(tmap, sf, tidyverse)
 
 Firstly we will import the *Passenger volume by Origin Destination Bus Stops* data set downloaded from LTA DataMall by using `read_csv()` of **readr** package.
 
-``` {r}  
+```{r}
 odbus <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
 ```
-``` {r}
+
+```{r}
 #| eval: false
 origtrip_7_9 <- odbus %>%
   filter(DAY_TYPE == "WEEKDAY") %>%
@@ -40,7 +41,7 @@ origtrip_7_9 <- odbus %>%
 
 ```
 
-``` {r}
+```{r}
 #| eval: false
 odbus$ORIGIN_PT_CODE <-
 as.factor(odbus$ORIGIN_PT_CODE)
@@ -58,4 +59,28 @@ mpsz <- st_read(dsn = "data/geospatial", layer =  "MPSZ-2019") %>% st_transform(
 mpsz
 ```
 
+## Extracting the data for Analysis
+
+```{r}
+glimpse(mpsz)
+
 ```
+
+### Importing polyline feature data in shapefile form
+
+```{r} 
+cyclingpath = st_read(dsn = "data/geospatial", 
+                         layer = "CyclingPathGazette") 
+```
+### Importing GIS data in kml format
+
+```{r}
+preschool = st_read("data/geospatial/PreSchoolsLocation.kml") 
+```
+The message above reveals that preschool is a point feature data frame. There are a total of 2290 features and 2 fields. Different from the previous two simple feature data frame, preschool is in wgs84 coordinates system.
+
+## Checking the Content of A Simple Feature Data Frame
+```{r}
+st_geometry(mpsz)
+```
+
