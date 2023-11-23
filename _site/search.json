@@ -102,6 +102,6 @@
     "href": "In-class Exercise/In-class Exercise 1/In-class Exercise 1.html#checking-the-content-of-a-simple-feature-data-frame",
     "title": "In class Exercise 1: First Geospatial DA",
     "section": "Checking the Content of A Simple Feature Data Frame",
-    "text": "Checking the Content of A Simple Feature Data Frame"
+    "text": "Checking the Content of A Simple Feature Data Frame\n\nst_geometry(mpsz)\n\nGeometry set for 332 features \nGeometry type: MULTIPOLYGON\nDimension:     XY\nBounding box:  xmin: 2667.538 ymin: 15748.72 xmax: 56396.44 ymax: 50256.33\nProjected CRS: SVY21 / Singapore TM\nFirst 5 geometries:"
   }
 ]
