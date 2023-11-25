@@ -77,15 +77,23 @@ install.packages("Kendall", repos = "https://cloud.r-project.org")
 ```
 
 ```{r}
-hunan_ehsa <- emerging_hotspot_analysis(
-  x = GDPPC_st,  .var = "GDPPC",
-  k = 1,  nsim = 99
+ehsa <- emerging_hotspot_analysis(
+  x = GDPPC_st,  
+  .var = "GDPPC",
+  k = 1,  
+  nsim = 99
 )
+
+hunan_ehsa <-hunan %>%
+  left_join(ehsa,
+            by= join_by(County==location))
 ```
 
 ```{r}
-ehsa_sig <- hunan_ehsa %>%  filter(p_value <0.05) tmap_mode("plot")tm_shape(hunan_ehsa) +
-  tm_polygons() +  tm_borders(alpha = 0.5) +
-tm_shape(ehsa_sig) +  tm_fill("classification") +
-  tm_borders(alpha = 0.4)
+ehsa_sig <- hunan_ehsa %>%  
+  filter(p_value <0.05) 
+
+tmap_mode("plot") 
+tm_shape(hunan_ehsa) +
+  tm_polygons +  tm_borders(alpha = 0.5) + tm_shape(ehsa_sig) + tm_fill("classification") + tm_borders(alpha = 0.4)
 ```
