@@ -1,0 +1,459 @@
+---
+title: "Take Home Exercise 1"
+date: "27 Novemeber 2023"
+date-modified: "last-modified"
+format: html
+execute:
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+## Getting Started
+
+```{r}
+pacman::p_load(tmap,sf,tidyverse,knitr,h3jsr,dplyr, mapview)
+```
+
+## Preparing the Flow Data
+
+### Importing the OD data
+
+Firstly, we will import the **Passenger Volume by Origin Destination Bus Stops** data set downloaded from LTA DataMall by using read_csv() of **readr** package.
+
+```{r}
+odbus <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
+```
+
+Check odbus tibble data frame that values in OROGIN_PT_CODE and DESTINATION_PT_CODE are in numeric data type.
+
+```{r}
+glimpse(odbus)
+```
+
+Origin & Destination Bus Stop Code
+
+```{r}
+odbus$ORIGIN_PT_CODE <-
+as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <-
+as.factor(odbus$DESTINATION_PT_CODE)
+```
+
+### Extracting the Study Data
+
+Filter out data that belong to trips that occur on:
+
+-   "Weekday" and "6-9am" (wdmp)
+
+    ```{r}
+    wdmp <-  odbus %>%
+      filter(DAY_TYPE == "WEEKDAY") %>%
+      filter(TIME_PER_HOUR >= 6 &
+               TIME_PER_HOUR <= 9) %>%
+      group_by(ORIGIN_PT_CODE) %>%
+      summarise(TRIPS = sum(TOTAL_TRIPS))
+    ```
+
+-   "Weekday" and "5-8pm" (wdap)
+
+    ```{r}
+    wdap <-  odbus %>%
+      filter(DAY_TYPE == "WEEKDAY") %>%
+      filter(TIME_PER_HOUR >= 17 &
+               TIME_PER_HOUR <= 20) %>%
+      group_by(ORIGIN_PT_CODE) %>%
+      summarise(TRIPS = sum(TOTAL_TRIPS))
+    ```
+
+-   "Weekends/Holiday" and "11am-2pm" (hmp)
+
+    ```{r}
+    hmp <- odbus %>%
+      filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
+      filter(TIME_PER_HOUR >= 11 &
+               TIME_PER_HOUR <= 14) %>%
+      group_by(ORIGIN_PT_CODE) %>%
+      summarise(TRIPS = sum(TOTAL_TRIPS))
+    ```
+
+-   "Weekends/Holiday" and "4pm-7pm" (hep)
+
+    ```{r}
+    hep <- odbus %>%
+      filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
+      filter(TIME_PER_HOUR >= 16 &
+               TIME_PER_HOUR <= 19) %>%
+      group_by(ORIGIN_PT_CODE) %>%
+      summarise(TRIPS = sum(TOTAL_TRIPS))
+    ```
+
+Check resulting data tables
+
+```{r}
+kable(head(wdmp)) 
+kable(head(wdap)) 
+kable(head(hmp)) 
+kable(head(hep))
+```
+
+Output saved in rds format for future use
+
+```{r}
+write_rds(wdmp, "data/rds/wdmp.rds") 
+write_rds(wdap, "data/rds/wdap.rds") 
+write_rds(hmp, "data/rds/hmp.rds") 
+write_rds(hep, "data/rds/hep.rds")
+```
+
+Import the rds file into R environment
+
+```{r}
+wdmp <- read_rds("data/rds/wdmp.rds") 
+wdap <- read_rds("data/rds/wdap.rds") 
+hmp <- read_rds("data/rds/hmp.rds") 
+hep <- read_rds("data/rds/hmp.rds")
+```
+
+## Working with Geospatial Data
+
+Two geospatial data (shapefile) will be used for this exercise:
+
+-   BusStop: Provides location of bus stop as at Q4 2022
+
+-   MPSZ-2019: This data provides the sub-zone boundary of URA Master Plan 2019
+
+### Importing geospatial data
+
+```{r}
+busstop <- st_read(dsn = "Data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+
+mpsz <- st_read(dsn = "data/geospatial",
+                layer = "MPSZ-2019") %>%
+  st_transform(crs = 3414)
+```
+
+Check structure of `busstop` and `MPSZ`  sf tibble data frame
+
+```{r}
+glimpse(busstop)
+glimpse(mpsz)
+```
+
+## Geospatial Data Wrangling
+
+### Combining Busstop & mpsz
+
+```{r}
+busstop_mpsz <- st_intersection(busstop, mpsz) %>%
+  select(BUS_STOP_N, SUBZONE_C) %>%
+  st_drop_geometry()
+```
+
+Save output into rds format
+
+```{r}
+write_rds(busstop_mpsz, "data/rds/busstop_mpsz.csv")
+```
+
+## Setting up the Hexagon Grid
+
+### Drawing the Hexagon Grid
+
+Draw hexagon grid over the mpsz map
+
+```{r}
+area_honeycomb_grid = st_make_grid(mpsz, c(250, 250), what = "polygons", square = FALSE)
+```
+
+Convert the hexagon grid to sf (simple features) object and add a new column grid_id (sequential identifier) to it
+
+```{r}
+honeycomb_grid_sf = st_sf(area_honeycomb_grid) %>%
+  # add grid ID
+  mutate(grid_id = 1:length(lengths(area_honeycomb_grid)))
+```
+
+Determine which bus stops is contained within which hexagon using **`st_within`**.
+
+```{r}
+busstop_honeycomb <- st_intersection(honeycomb_grid_sf,busstop) %>%
+  select(BUS_STOP_N, grid_id) %>%
+  st_drop_geometry()
+```
+
+Save output into rds format
+
+```{r}
+write_rds(busstop_honeycomb, "data/rds/busstop_honeycomb.csv")
+```
+
+Check for duplicate records
+
+```{r}
+duplicate <- busstop_honeycomb %>%
+  group_by_all() %>%
+  filter(n()>1) %>%
+  ungroup()
+```
+
+Retain unique records only
+
+```{r}
+busstop_honeycomb <- unique(busstop_honeycomb)
+```
+
+Only include hexagon grid IDs that have bus stop numbers
+
+```{r}
+
+busstop_honeycomb <- busstop_honeycomb %>%
+  filter(!is.na(grid_id) & grid_id > 0)
+```
+
+### Assign Each Bus Stop to a Grid ID
+
+For all time periods, assign bus stops to a hexagon grid id. All NULL and 0 values are removed.
+
+```{r}
+wdmp_gridid <- left_join(busstop_honeycomb, wdmp,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+wdmp_gridid <- wdmp_gridid %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+
+
+wdap_gridid <- left_join(busstop_honeycomb, wdap,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+wdap_gridid <- wdap_gridid %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+
+
+hmp_gridid <- left_join(busstop_honeycomb, hmp,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+hmp_gridid <- hmp_gridid %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+
+
+hep_gridid <- left_join(busstop_honeycomb, hep,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+hep_gridid <- hep_gridid %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+
+```
+
+## **Choropleth Visualisation**
+
+**Weekday Morning Peak 6am-9am**
+
+Sum up the trips per hexagon
+
+```{r}
+total_trips_by_grid <- wdmp_gridid %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+*\<insert description of spatial patterns in 200 words\>*
+
+**Weekday Afternoon Peak 5pm-8pm**
+
+Sum up the trips per hexagon
+
+```{r}
+total_trips_by_grid <- wdap_gridid %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+\<insert description of spatial patterns in 200 words\>
+
+**Weekend/Holiday Morning Peak** **11am-2pm**
+
+Sum up the trips per hexagon
+
+```{r}
+total_trips_by_grid <- hmp_gridid %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Greens",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+\<insert description of spatial patterns in 200 words\>
+
+**Collate hexagon data for** **Weekend/Holiday Evening Peak 4pm-7pm**
+
+Sum up the trips per hexagon
+
+```{r}
+total_trips_by_grid <- hep_gridid %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Greens",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+\<insert description of spatial patterns in 200 words\>
+
+## **Local Indicators of Spatial Association (LISA) Analysis**
+
+-   Compute LISA of the passengers trips generate by origin at hexagon level.
+
+-   Display the LISA maps of the passengers trips generate by origin at hexagon level. The maps should only display the significant (i.e. p-value \< 0.05)
+
+-   With reference to the analysis results, draw statistical conclusions (not more than 200 words per visual).
