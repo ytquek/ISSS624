@@ -502,5 +502,12 @@
     "title": "Take-home-project",
     "section": "Weekend/Holiday Peak 4pm-7pm",
     "text": "Weekend/Holiday Peak 4pm-7pm\n\ntotal_trips_by_grid &lt;- origin_16_19 %&gt;%\n  group_by(grid_id) %&gt;%\n  summarise(total_trips = sum(TRIPS, na.rm = TRUE))\n\nMerge geospatial data\n\ntotal_trips_by_grid &lt;- total_trips_by_grid %&gt;%\n  left_join(honeycomb_grid_sf, by = c(\"grid_id\" = \"grid_id\"))\n\ntotal_trips_by_grid_sf &lt;- st_sf(total_trips_by_grid)\n\nPlot the Choropleth map\n\ntmap_mode(\"view\")\n\nmap_honeycomb = tm_shape(total_trips_by_grid_sf) +\n  tm_fill(\n    col = \"total_trips\",\n    palette = \"Reds\",\n    style = \"cont\",\n    title = \"Total Trips Taken - Weekday Morning Peak 6-9am\",\n    id = \"grid_id\",\n    showNA = FALSE,\n    alpha = 0.6,\n    popup.vars = c(\n      \"Number of trips: \" = \"total_trips\"\n    ),\n    popup.format = list(\n      total_trips = list(format = \"f\", digits = 0)\n    )\n  ) +\n  tm_borders(col = \"grey40\", lwd = 0.4)\n\nmap_honeycomb"
+  },
+  {
+    "objectID": "Project/TakeHome_Ex1.html#local-indicators-of-spatial-association-lisa-analysis",
+    "href": "Project/TakeHome_Ex1.html#local-indicators-of-spatial-association-lisa-analysis",
+    "title": "Take-home-project",
+    "section": "Local Indicators of Spatial Association (LISA) Analysis",
+    "text": "Local Indicators of Spatial Association (LISA) Analysis"
   }
 ]
