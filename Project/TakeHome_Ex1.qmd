@@ -20,12 +20,27 @@ pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, mapview)
 ```
 
 ### Importing OD data into R
+
 Firstly we will import the Passenger volume by Origin Destination Bus Stops data set downloaded from LTA DataMall by using read_csv() of readr package.
 
 ```{r}
 odbus <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
 glimpse(odbus)
 ```
+
+#### Origin & Destination Bus Stop Code
+
+```{r}
+odbus$ORIGIN_PT_CODE <-
+as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <-
+as.factor(odbus$DESTINATION_PT_CODE)
+```
+
+#### Extracting study data
+
+We will filter out the data according to the requirements set out by Professor 1.) "Weekday \@ 6-9am"
+
 ```{r}
 origtrip_6_9 <- odbus %>%
   filter(DAY_TYPE == "WEEKDAY") %>%
@@ -40,6 +55,7 @@ kable(head(origtrip_6_9))
 write_rds(origtrip_6_9, "data/rds/origtrip_6_9.rds")
 ```
 
+2.) "Weekday \@ 5-8pm"
 
 ```{r}
 origtrip_17_20 <- odbus %>%
@@ -50,10 +66,13 @@ origtrip_17_20 <- odbus %>%
   summarise(TRIPS = sum(TOTAL_TRIPS))
 glimpse(origtrip_17_20)
 ```
+
 ```{r}
 kable(head(origtrip_17_20))
 write_rds(origtrip_17_20, "data/rds/origtrip_17_20.rds")
 ```
+
+3.) "Weekend \@ 11am-2pm"
 
 ```{r}
 origtrip_11_14 <- odbus %>%
@@ -68,6 +87,8 @@ origtrip_11_14 <- odbus %>%
 kable(head(origtrip_11_14))
 write_rds(origtrip_11_14, "data/rds/origtrip_11_14.rds")
 ```
+
+4.) "Weekend \@ 4-7pm"
 
 ```{r}
 origtrip_16_19 <- odbus %>%
@@ -88,30 +109,38 @@ origtrip_11_14 <- read_rds("data/rds/origtrip_11_14.rds")
 origtrip_16_19 <- read_rds("data/rds/origtrip_16_19.rds")
 origtrip_17_20 <- read_rds("data/rds/origtrip_17_20.rds")
 origtrip_6_9 <- read_rds("data/rds/origtrip_6_9.rds")
-glimpse(origtrip_6_9)
 ```
 
 ### Importing geospatial data
+
 ```{r}
 busstop <- st_read(dsn = "data/geospatial",
                    layer = "BusStop") %>%
   st_transform(crs = 3414)
 ```
+
 #### Glimpse the Bus Stop tibble data frame
+
 ```{r}
 glimpse(busstop)
 ```
+
 #### Load Map into MPSZ
+
 ```{r}
 mpsz <- st_read(dsn = "data/geospatial",
                    layer = "MPSZ-2019") %>%
   st_transform(crs = 3414)
 ```
+
 ```{r}
 glimpse(mpsz)
 ```
+
 ## Geospatial Data Wrangling
+
 ### Combining Busstop and mpsz
+
 ```{r}
 busstop_mpsz <- st_intersection(busstop, mpsz) %>%
   select(BUS_STOP_N, SUBZONE_C) %>%
@@ -143,11 +172,6 @@ origin_17_20 <- left_join(origtrip_17_20 , busstop_mpsz,
 ```
 
 ```{r}
-class(origin_17_20)
-```
-
-
-```{r}
 origin_11_14 <- left_join(origtrip_11_14 , busstop_mpsz,
             by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
   rename(ORIGIN_BS = ORIGIN_PT_CODE,
@@ -165,10 +189,268 @@ origin_16_19 <- left_join(origtrip_16_19 , busstop_mpsz,
   summarise(TOT_TRIPS = sum(TRIPS))
 ```
 
-## Choropleth Visualisation
-### Plotting Hexagonal Chunks
+## Setting up the Hexagon Grid
+
+### Drawing the Hexagon Grid
+
+Drawing the hexagon grid over the mpsz map
+
+```{r}
+area_honeycomb_grid = st_make_grid(mpsz, c(250, 250), what = "polygons", square = FALSE)
+```
+
+### To sf and add grid ID
+
+```{r}
+honeycomb_grid_sf = st_sf(area_honeycomb_grid) %>%
+  mutate(grid_id = 1:length(lengths(area_honeycomb_grid)))
+```
+
+Determine which bus stops is contained within which hexagon using **`st_within`**.
+
+```{r}
+busstop_honeycomb <- st_intersection(honeycomb_grid_sf,busstop) %>%
+  select(BUS_STOP_N, grid_id) %>%
+  st_drop_geometry()
+```
+
+```{r}
+write_rds(busstop_honeycomb, "data/rds/busstop_honeycomb.csv")
+```
+
+Check for duplicate records
+
+```{r}
+duplicate <- busstop_honeycomb %>%
+  group_by_all() %>%
+  filter(n()>1) %>%
+  ungroup()
+```
+
+```{r}
+busstop_honeycomb <- unique(busstop_honeycomb)
+```
+
+### remove grid without value of 0 (i.e. no points in side that grid)
+
+busstop_honeycomb \<- busstop_honeycomb %\>% filter(!is.na(grid_id) & grid_id \> 0)
+
+## Assign every Bus Stop with a Grid ID
+
+```{r}
+origin_6_9 <- left_join(busstop_honeycomb, origtrip_6_9,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+origin_6_9 <- origin_6_9 %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
 
 
+origin_17_20 <- left_join(busstop_honeycomb, origtrip_17_20,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+origin_17_20 <- origin_17_20 %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
 
 
+origin_11_14 <- left_join(busstop_honeycomb, origtrip_11_14,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+origin_11_14 <- origin_11_14 %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+
+
+origin_16_19 <- left_join(busstop_honeycomb, origtrip_16_19,
+            by = c("BUS_STOP_N" = "ORIGIN_PT_CODE")) 
+
+origin_16_19 <- origin_16_19 %>%
+  filter(!is.na(TRIPS) & TRIPS > 0)
+```
+
+# Choropleth Visualisation
+
+## Weekday Morning Peak 6am-9am
+
+```{r}
+total_trips_by_grid <- origin_6_9 %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+## Weekday Afternoon Peak 5pm - 8pm
+
+```{r}
+total_trips_by_grid <- origin_17_20 %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+## Weekday/Weekend Morning Peak 11am-2pm
+
+```{r}
+total_trips_by_grid <- origin_11_14 %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+## Weekend/Holiday Peak 4pm-7pm
+
+```{r}
+total_trips_by_grid <- origin_16_19 %>%
+  group_by(grid_id) %>%
+  summarise(total_trips = sum(TRIPS, na.rm = TRUE))
+
+```
+
+Merge geospatial data
+
+```{r}
+
+total_trips_by_grid <- total_trips_by_grid %>%
+  left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
+
+total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+```
+
+Plot the Choropleth map
+
+```{r}
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+  tm_fill(
+    col = "total_trips",
+    palette = "Reds",
+    style = "cont",
+    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of trips: " = "total_trips"
+    ),
+    popup.format = list(
+      total_trips = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.4)
+
+map_honeycomb
+```
+
+## **Local Indicators of Spatial Association (LISA) Analysis**
 
