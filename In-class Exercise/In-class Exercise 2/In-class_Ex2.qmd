@@ -7,8 +7,7 @@ title: "In-class Exercise 2"
 Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** packages of R are currently installed 
 
 ```{r}
-#| code-fold:true 
-#| code-summary:"Show the code"
+
 pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall())
 ```
 

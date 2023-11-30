@@ -1,0 +1,210 @@
+---
+title: "Take-home-project"
+subtitle: "Geospatial Proj"
+date: "27 Nov 2023"
+date-modified: "last-modified"
+format: html
+execute: 
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+## Getting Started
+
+Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** packages of R are currently installed 
+
+```{r}
+pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, mapview)
+```
+
+### Importing OD data into R
+Firstly we will import the Passenger volume by Origin Destination Bus Stops data set downloaded from LTA DataMall by using read_csv() of readr package.
+
+```{r}
+odbus <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
+glimpse(odbus)
+```
+```{r}
+origtrip_6_9 <- odbus %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter(TIME_PER_HOUR >= 6 &
+           TIME_PER_HOUR <= 9) %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+```
+
+```{r}
+kable(head(origtrip_6_9))
+write_rds(origtrip_6_9, "data/rds/origtrip_6_9.rds")
+```
+
+
+```{r}
+origtrip_17_20 <- odbus %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter(TIME_PER_HOUR >= 17 &
+           TIME_PER_HOUR <= 20) %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+glimpse(origtrip_17_20)
+```
+```{r}
+kable(head(origtrip_17_20))
+write_rds(origtrip_17_20, "data/rds/origtrip_17_20.rds")
+```
+
+```{r}
+origtrip_11_14 <- odbus %>%
+  filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
+  filter(TIME_PER_HOUR >= 11 &
+           TIME_PER_HOUR <= 14) %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+```
+
+```{r}
+kable(head(origtrip_11_14))
+write_rds(origtrip_11_14, "data/rds/origtrip_11_14.rds")
+```
+
+```{r}
+origtrip_16_19 <- odbus %>%
+  filter(DAY_TYPE == "WEEKENDS/HOLIDAY") %>%
+  filter(TIME_PER_HOUR >= 16 &
+           TIME_PER_HOUR <= 19) %>%
+  group_by(ORIGIN_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+```
+
+```{r}
+kable(head(origtrip_16_19))
+write_rds(origtrip_16_19, "data/rds/origtrip_16_19.rds")
+```
+
+```{r}
+origtrip_11_14 <- read_rds("data/rds/origtrip_11_14.rds")
+origtrip_16_19 <- read_rds("data/rds/origtrip_16_19.rds")
+origtrip_17_20 <- read_rds("data/rds/origtrip_17_20.rds")
+origtrip_6_9 <- read_rds("data/rds/origtrip_6_9.rds")
+glimpse(origin_6_9)
+```
+
+### Importing geospatial data
+```{r}
+busstop <- st_read(dsn = "data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+```
+#### Glimpse the Bus Stop tibble data frame
+```{r}
+glimpse(busstop)
+```
+#### Load Map into MPSZ
+```{r}
+mpsz <- st_read(dsn = "data/geospatial",
+                   layer = "MPSZ-2019") %>%
+  st_transform(crs = 3414)
+```
+```{r}
+glimpse(mpsz)
+```
+## Geospatial Data Wrangling
+### Combining Busstop and mpsz
+```{r}
+busstop_mpsz <- st_intersection(busstop, mpsz) %>%
+  select(BUS_STOP_N, SUBZONE_C) %>%
+  st_drop_geometry()
+glimpse(busstop_mpsz)
+```
+
+```{r}
+write_rds(busstop_mpsz, "data/rds/busstop_mpsz.csv")  
+```
+
+```{r}
+origin_6_9 <- left_join(origtrip_6_9 , busstop_mpsz,
+            by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ORIGIN_BS = ORIGIN_PT_CODE,
+         ORIGIN_SZ = SUBZONE_C) %>%
+  group_by(ORIGIN_SZ) %>%
+  summarise(TOT_TRIPS = sum(TRIPS))
+glimpse(origin_6_9)
+```
+
+```{r}
+origin_17_20 <- left_join(origtrip_17_20 , busstop_mpsz,
+            by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ORIGIN_BS = ORIGIN_PT_CODE,
+         ORIGIN_SZ = SUBZONE_C) %>%
+  group_by(ORIGIN_SZ) %>%
+  summarise(TOT_TRIPS = sum(TRIPS))
+```
+
+```{r}
+class(origin_17_20)
+```
+
+
+```{r}
+origin_11_14 <- left_join(origtrip_11_14 , busstop_mpsz,
+            by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ORIGIN_BS = ORIGIN_PT_CODE,
+         ORIGIN_SZ = SUBZONE_C) %>%
+  group_by(ORIGIN_SZ) %>%
+  summarise(TOT_TRIPS = sum(TRIPS))
+```
+
+```{r}
+origin_16_19 <- left_join(origtrip_16_19 , busstop_mpsz,
+            by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ORIGIN_BS = ORIGIN_PT_CODE,
+         ORIGIN_SZ = SUBZONE_C) %>%
+  group_by(ORIGIN_SZ) %>%
+  summarise(TOT_TRIPS = sum(TRIPS))
+```
+
+## Choropleth Visualisation
+### Plotting Hexagonal Chunks
+
+
+```{r}
+area_honeycomb_grid = st_make_grid(mpsz, c(150, 150), what = "polygons", square = FALSE)
+
+# To sf and add grid ID
+honeycomb_grid_sf = st_sf(area_honeycomb_grid) %>%
+  # add grid ID
+  mutate(grid_id = 1:length(lengths(area_honeycomb_grid)))
+
+# count number of points in each grid
+# https://gis.stackexchange.com/questions/323698/counting-points-in-polygons-with-sf-package-of-r
+honeycomb_grid_sf$n_colli = lengths(st_intersects(honeycomb_grid_sf, origin_test_data))
+
+# remove grid without value of 0 (i.e. no points in side that grid)
+honeycomb_count = filter(honeycomb_grid_sf, n_colli > 0)
+
+tmap_mode("view")
+
+map_honeycomb = tm_shape(honeycomb_count) +
+  tm_fill(
+    col = "n_colli",
+    palette = "Reds",
+    style = "cont",
+    title = "Number of collisions",
+    id = "grid_id",
+    showNA = FALSE,
+    alpha = 0.6,
+    popup.vars = c(
+      "Number of collisions: " = "n_colli"
+    ),
+    popup.format = list(
+      n_colli = list(format = "f", digits = 0)
+    )
+  ) +
+  tm_borders(col = "grey40", lwd = 0.7)
+
+map_honeycomb
+```
+
+

@@ -68,19 +68,21 @@ glimpse(mpsz)
 
 ### Importing polyline feature data in shapefile form
 
-```{r} 
+```{r}
 cyclingpath = st_read(dsn = "data/geospatial", 
                          layer = "CyclingPathGazette") 
 ```
+
 ### Importing GIS data in kml format
 
 ```{r}
 preschool = st_read("data/geospatial/PreSchoolsLocation.kml") 
 ```
+
 The message above reveals that preschool is a point feature data frame. There are a total of 2290 features and 2 fields. Different from the previous two simple feature data frame, preschool is in wgs84 coordinates system.
 
 ## Checking the Content of A Simple Feature Data Frame
+
 ```{r}
 st_geometry(mpsz)
 ```
-
