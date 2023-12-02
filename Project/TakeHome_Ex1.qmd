@@ -16,7 +16,7 @@ editor: visual
 Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** packages of R are currently installed 
 
 ```{r}
-pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, mapview, spdep)
+pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, spdep)
 ```
 
 ### Importing OD data into R
@@ -292,7 +292,7 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb = tm_shape(total_trips_by_grid_sf_6_9) +
+tm_shape(total_trips_by_grid_sf_6_9) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
@@ -310,7 +310,7 @@ map_honeycomb = tm_shape(total_trips_by_grid_sf_6_9) +
   ) +
   tm_borders(col = "grey40", lwd = 0.4)
 
-map_honeycomb
+
 ```
 
 ## Weekday Afternoon Peak 5pm - 8pm
@@ -338,7 +338,7 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb1 = tm_shape(total_trips_by_grid_sf_17_20) +
+tm_shape(total_trips_by_grid_sf_17_20) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
@@ -357,7 +357,7 @@ map_honeycomb1 = tm_shape(total_trips_by_grid_sf_17_20) +
   tm_borders(col = "grey40", lwd = 0.4)
 
 
-map_honeycomb1
+
 ```
 
 ## Weekday/Weekend Morning Peak 11am-2pm
@@ -384,7 +384,7 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+tm_shape(total_trips_by_grid_sf) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
@@ -402,7 +402,7 @@ map_honeycomb = tm_shape(total_trips_by_grid_sf) +
   ) +
   tm_borders(col = "grey40", lwd = 0.4)
 
-map_honeycomb
+
 ```
 
 ## Weekend/Holiday Peak 4pm-7pm
@@ -430,7 +430,7 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+tm_shape(total_trips_by_grid_sf) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
@@ -448,7 +448,7 @@ map_honeycomb = tm_shape(total_trips_by_grid_sf) +
   ) +
   tm_borders(col = "grey40", lwd = 0.4)
 
-map_honeycomb
+
 ```
 
 ## **Local Indicators of Spatial Association (LISA) Analysis**
@@ -490,6 +490,7 @@ wm08 <- wm08 %>%
     .before = 1
   )
 ```
+
 #### Step 3 Plot a map based on the list of neighbours
 
 ```{r}
@@ -517,7 +518,11 @@ map_08 <- tm_shape(wm08) +
 map_08
 ```
 
+### Weekday Morning Peak Traffic
+
 ```{r}
+# Set seed to ensure that results from simulation are reproducible
+set.seed(1234)
 # Step 1: Merge the data
 # Ensure that both wm08 and Origin_6_9 have 'grid_id' as a common key
 # and that it's of the same data type in both data frames
@@ -549,7 +554,53 @@ if (nrow(merged_data) != length(listw$neighbours)) {
 }
 
 # Run the Monte Carlo test for Local Moran's 
-lisa <- merged_data %>%
+lisa_wd_morn <- merged_data %>%
+  mutate(local_moran = local_moran(
+    total_trips, nb, wt, nsim = 99),
+    .before = 1) %>%
+  unnest(local_moran)
+
+# unnest the dataframe column
+tidyr::unnest(lisa_wd_morn)
+```
+
+### Weekday Afternoon/Evening Peak Traffic
+
+```{r}
+# Set seed to ensure that results from simulation are reproducible
+set.seed(1234)
+# Step 1: Merge the data
+# Ensure that both wm08 and Origin_6_9 have 'grid_id' as a common key
+# and that it's of the same data type in both data frames
+merged_data_17_20 <- wm08 %>% 
+  left_join(origin_17_20, by = "grid_id")
+
+# Step 2: Prepare the data
+# Assuming 'area_honeycomb_grid' is the geometry column in wm08
+# Convert to an sf object if not already
+if (!("sf" %in% class(merged_data_17_20))) {
+  merged_data_17_20 <- st_as_sf(merged_data_17_20, geom_col = "area_honeycomb_grid")
+}
+
+# Recreate the neighbor list and spatial weights
+# Ensure 'nb' is in the correct format (e.g., created using st_contiguity or similar)
+listw <- nb2listw(merged_data_17_20$nb, style = "W")
+
+merged_data_17_20$standardized_trips <- as.numeric(scale(merged_data_17_20$TRIPS, center = TRUE, scale = TRUE))
+
+# Remove NA values from the data
+merged_data_17_20 <- merged_data_17_20[!is.na(merged_data_17_20$standardized_trips), ]
+
+# Recreate the spatial weights to match the filtered data
+listw <- nb2listw(merged_data_17_20$nb, style = "W")
+
+# Check if the lengths match
+if (nrow(merged_data_17_20) != length(listw$neighbours)) {
+  stop("The length of the data and the spatial weights list do not match.")
+}
+
+# Run the Monte Carlo test for Local Moran's 
+lisa <- merged_data_17_20 %>%
   mutate(local_moran = local_moran(
     total_trips, nb, wt, nsim = 99),
     .before = 1) %>%
@@ -560,6 +611,130 @@ tidyr::unnest(lisa)
 
 # Extracting p-values or other results from local_moran_mc
 # ...
+```
+
+### Weekend/Holiday Morning Peak Traffic
+
+```{r}
+# Set seed to ensure that results from simulation are reproducible
+set.seed(1234)
+# Step 1: Merge the data
+# Ensure that both wm08 and Origin_6_9 have 'grid_id' as a common key
+# and that it's of the same data type in both data frames
+merged_data_11_14 <- wm08 %>% 
+  left_join(origin_11_14, by = "grid_id")
+
+# Step 2: Prepare the data
+# Assuming 'area_honeycomb_grid' is the geometry column in wm08
+# Convert to an sf object if not already
+if (!("sf" %in% class(merged_data_11_14))) {
+  merged_data_11_14 <- st_as_sf(merged_data_11_14, geom_col = "area_honeycomb_grid")
+}
+
+# Recreate the neighbor list and spatial weights
+# Ensure 'nb' is in the correct format (e.g., created using st_contiguity or similar)
+listw <- nb2listw(merged_data_11_14$nb, style = "W")
+
+merged_data_11_14$standardized_trips <- as.numeric(scale(merged_data_11_14$TRIPS, center = TRUE, scale = TRUE))
+
+# Remove NA values from the data
+merged_data_11_14 <- merged_data_11_14[!is.na(merged_data_11_14$standardized_trips), ]
+
+# Recreate the spatial weights to match the filtered data
+listw <- nb2listw(merged_data_11_14$nb, style = "W")
+
+# Check if the lengths match
+if (nrow(merged_data_11_14) != length(listw$neighbours)) {
+  stop("The length of the data and the spatial weights list do not match.")
+}
+
+# Run the Monte Carlo test for Local Moran's 
+lisa <- merged_data_11_14 %>%
+  mutate(local_moran = local_moran(
+    total_trips, nb, wt, nsim = 99),
+    .before = 1) %>%
+  unnest(local_moran)
+
+# unnest the dataframe column
+tidyr::unnest(lisa)
+
+# Extracting p-values or other results from local_moran_mc
+# ...
+```
+
+### Weekend/Holiday Evening Peak Traffic
+
+```{r}
+# Set seed to ensure that results from simulation are reproducible
+set.seed(1234)
+# Step 1: Merge the data
+# Ensure that both wm08 and Origin_6_9 have 'grid_id' as a common key
+# and that it's of the same data type in both data frames
+merged_data_16_19 <- wm08 %>% 
+  left_join(origin_16_19, by = "grid_id")
+
+# Step 2: Prepare the data
+# Assuming 'area_honeycomb_grid' is the geometry column in wm08
+# Convert to an sf object if not already
+if (!("sf" %in% class(merged_data_16_19))) {
+  merged_data_16_19 <- st_as_sf(merged_data_16_19, geom_col = "area_honeycomb_grid")
+}
+
+# Recreate the neighbor list and spatial weights
+# Ensure 'nb' is in the correct format (e.g., created using st_contiguity or similar)
+listw <- nb2listw(merged_data_16_19$nb, style = "W")
+
+merged_data_16_19$standardized_trips <- as.numeric(scale(merged_data_16_19$TRIPS, center = TRUE, scale = TRUE))
+
+# Remove NA values from the data
+merged_data_16_19 <- merged_data_16_19[!is.na(merged_data_16_19$standardized_trips), ]
+
+# Recreate the spatial weights to match the filtered data
+listw <- nb2listw(merged_data_16_19$nb, style = "W")
+
+# Check if the lengths match
+if (nrow(merged_data_16_19) != length(listw$neighbours)) {
+  stop("The length of the data and the spatial weights list do not match.")
+}
+
+# Run the Monte Carlo test for Local Moran's 
+lisa <- merged_data_16_19 %>%
+  mutate(local_moran = local_moran(
+    total_trips, nb, wt, nsim = 99),
+    .before = 1) %>%
+  unnest(local_moran)
+
+# unnest the dataframe column
+tidyr::unnest(lisa)
+
+# Extracting p-values or other results from local_moran_mc
+# ...
+```
+
+```{r}
+# Set map to static
+tmap_mode("plot")
+
+# weekday morning moran I values
+map_wdm_moran08 <- tm_shape(lisa_wd_morn) +
+  tm_fill(
+    col = "ii",
+    palette = "OrRd",
+    style = "pretty",
+    title = "Local Moran's I"
+  ) +
+  tm_layout(main.title = "Weekday Morning Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+map_wdm_moran08
+
+
 ```
 
 ```{r}
@@ -585,4 +760,3 @@ map_m1 <- tm_shape(merged_data) +
 
 map_m1
 ```
-
