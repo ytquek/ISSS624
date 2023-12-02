@@ -23,13 +23,17 @@ pacman::p_load(sf, tidyverse)
 mpsz <- st_read(dsn = "data/geospatial", 
                   layer = "MP14_SUBZONE_WEB_PL")
 ```
+
 ### Importing polyline feature data in shapefile form
+
 The code chunk below uses st_read() function of sf package to import CyclingPath shapefile into R as line feature data frame.
+
 ```{r}
 cyclingpath <- st_read(dsn = "data/geospatial", layer = "CyclingPathGazette")
 ```
 
 ### Importing GIS data in KML format
+
 The PreSchoolsLocation is in kml format. The code chunk below will be used to import the kml into R. Notice that in the code chunk below, the complete path and the kml file extension were provided.
 
 ```{r}
@@ -37,27 +41,39 @@ preschool = st_read("data/geospatial/PreSchoolsLocation.kml")
 ```
 
 ## Checking the Content of A Simple Feature Data Frame
+
 ### Working with st_geometry
-We can retrieve the geometry list-column in this case by mpsz$geom or mpsz, but the more general way uses st_geometry() as shown in the code chunk below.
+
+We can retrieve the geometry list-column in this case by mpsz\$geom or mpsz, but the more general way uses st_geometry() as shown in the code chunk below.
+
 ```{r}
 st_geometry(mpsz)
 ```
+
 ### Working with Glimpse
+
 ```{r}
 glimpse(mpsz)
 ```
+
 ### Working with head()
+
 ```{r}
 head(mpsz, n=5)  
 ```
+
 ## Plotting the Geospatial Data
+
 ```{r}
 plot(mpsz)
 ```
+
 The default plot of an sf object is a multi-plot of all attributes, up to a reasonable maximum as shown above. We can, however, choose to plot only the geometry by using the code chunk below.
+
 ```{r}
 plot(st_geometry(mpsz))
 ```
+
 Alternatively, we can also choose the plot the sf object by using a specific attribute as shown in the code chunk below.
 
 ```{r}
@@ -65,15 +81,19 @@ plot(mpsz["SUBZONE_C"])
 ```
 
 ## Projection Transformation
+
 Map projection is an important property of a geospatial data. In order to perform geoprocessing using two geospatial data, we need to ensure that both geospatial data are projected using similar coordinate system.
 
 In this section, you will learn how to project a simple feature data frame from one coordinate system to another coordinate system. The technical term of this process is called projection transformation.
 
 ### Assigning EPSG code to a simple feature data frame
+
 This is an example the coordinate system of mpsz simple feature data frame by using st_crs() of sf package as shown in the code chunk below.
+
 ```{r}
 st_crs(mpsz)
 ```
+
 Although mpsz data frame is projected in svy21 but when we read until the end of the print, it indicates that the EPSG is 9001. This is a wrong EPSG code because the correct EPSG code for svy21 should be 3414.
 
 In order to assign the correct EPSG code to mpsz data frame, st_set_crs() of sf package is used as shown in the code chunk below.
@@ -83,24 +103,30 @@ mpsz3414 <- st_set_crs(mpsz, 3414)
 ```
 
 To check, we use:
+
 ```{r}
 st_crs(mpsz3414)
 
 ```
 
 ## Transforming the original data from geographic coordinate system to projected coordinate system
-Transforming the projection of preschool from wgs84 to svy21
-Let us perform the projection transformation by using the code chunk below.
+
+Transforming the projection of preschool from wgs84 to svy21 Let us perform the projection transformation by using the code chunk below.
+
 ```{r}
 preschool3414 <- st_transform(preschool,  crs = 3414)
 ```
+
 To check, we use:
+
 ```{r}
 st_crs(mpsz3414)
 ```
 
 ## Importing Aspatial Data
+
 Import Data
+
 ```{r}
 listings <- read_csv("data/aspatial/listings.csv") 
 ```
@@ -110,8 +136,11 @@ The code chunk below shows list() of Base R instead of glimpse() is used to do t
 ```{r}
 list(listings) 
 ```
+
 ### Creating a simple feature data frame from an aspatial data frame
+
 The code chunk below converts listing data frame into a simple feature data frame by using st_as_sf() of sf packages
+
 ```{r}
 listings_sf <- st_as_sf(listings, 
                        coords = c("longitude", "latitude"),
@@ -121,20 +150,20 @@ listings_sf <- st_as_sf(listings,
 
 Things to learn from the arguments above:
 
-coords argument requires you to provide the column name of the x-coordinates first then followed by the column name of the y-coordinates.
-crs argument requires you to provide the coordinates system in epsg format. EPSG: 4326 is wgs84 Geographic Coordinate System and EPSG: 3414 is Singapore SVY21 Projected Coordinate System. You can search for other country’s epsg code by referring to epsg.io.
-%>% is used to nest st_transform() to transform the newly created simple feature data frame into svy21 projected coordinates system.
-Let us examine the content of this newly created simple feature data frame.
+coords argument requires you to provide the column name of the x-coordinates first then followed by the column name of the y-coordinates. crs argument requires you to provide the coordinates system in epsg format. EPSG: 4326 is wgs84 Geographic Coordinate System and EPSG: 3414 is Singapore SVY21 Projected Coordinate System. You can search for other country's epsg code by referring to epsg.io. %\>% is used to nest st_transform() to transform the newly created simple feature data frame into svy21 projected coordinates system. Let us examine the content of this newly created simple feature data frame.
 
 ```{r}
 glimpse(listings_sf)
 ```
+
 ## Geoprocessing with sf package
+
 ### Buffering
+
 The authority is planning to upgrade the exiting cycling path. To do so, they need to acquire 5 metres of reserved land on the both sides of the current cycling path. You are tasked to determine the extend of the land need to be acquired and their total area.
 
-Solution:
-Firstly, st_buffer() of sf package is used to compute the 5-meter buffers around cycling paths
+Solution: Firstly, st_buffer() of sf package is used to compute the 5-meter buffers around cycling paths
+
 ```{r}
 buffer_cycling <- st_buffer(cyclingpath, 
                                dist=5, nQuadSegs = 30)
@@ -145,6 +174,7 @@ This is followed by calculating the area of the buffers as shown in the code chu
 ```{r}
 buffer_cycling$AREA <- st_area(buffer_cycling)
 ```
+
 Lastly, sum() of Base R will be used to derive the total land involved
 
 ```{r}
@@ -152,6 +182,7 @@ sum(buffer_cycling$AREA)
 ```
 
 ## Point in Polygon count
+
 The scenario:
 
 A pre-school service group want to find out the numbers of pre-schools in each Planning Subzone.
@@ -159,10 +190,13 @@ A pre-school service group want to find out the numbers of pre-schools in each P
 The solution:
 
 The code chunk below performs two operations at one go. Firstly, identify pre-schools located inside each Planning Subzone by using st_intersects(). Next, length() of Base R is used to calculate numbers of pre-schools that fall inside each planning subzone.
+
 ```{r}
 mpsz3414$`PreSch Count`<- lengths(st_intersects(mpsz3414, preschool3414))
 ```
+
 You can check the summary statistics of the newly derived PreSch Count field by using summary() as shown in the code chunk below.
+
 ```{r}
 summary(mpsz3414$`PreSch Count`)
 ```

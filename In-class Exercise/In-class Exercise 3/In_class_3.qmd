@@ -9,5 +9,12 @@ pacman::p_load(tmap, sf, sp, DT, stplanr,
 
 ```
 
+```{r}
+mpsz <- read_rds("data/rds/mpsz.rds")
+mpsz_sp <- as(mpsz, "Spatial")
+mpsz_sp
+```
+
+
 
 
