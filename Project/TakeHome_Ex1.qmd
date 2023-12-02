@@ -16,7 +16,7 @@ editor: visual
 Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** packages of R are currently installed 
 
 ```{r}
-pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, mapview)
+pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, mapview, spdep)
 ```
 
 ### Importing OD data into R
@@ -196,7 +196,7 @@ origin_16_19 <- left_join(origtrip_16_19 , busstop_mpsz,
 Drawing the hexagon grid over the mpsz map
 
 ```{r}
-area_honeycomb_grid = st_make_grid(mpsz, c(250, 250), what = "polygons", square = FALSE)
+area_honeycomb_grid = st_make_grid(mpsz, c(500), what = "polygons", square = FALSE)
 ```
 
 ### To sf and add grid ID
@@ -205,8 +205,6 @@ area_honeycomb_grid = st_make_grid(mpsz, c(250, 250), what = "polygons", square 
 honeycomb_grid_sf = st_sf(area_honeycomb_grid) %>%
   mutate(grid_id = 1:length(lengths(area_honeycomb_grid)))
 ```
-
-Determine which bus stops is contained within which hexagon using **`st_within`**.
 
 ```{r}
 busstop_honeycomb <- st_intersection(honeycomb_grid_sf,busstop) %>%
@@ -217,8 +215,6 @@ busstop_honeycomb <- st_intersection(honeycomb_grid_sf,busstop) %>%
 ```{r}
 write_rds(busstop_honeycomb, "data/rds/busstop_honeycomb.csv")
 ```
-
-Check for duplicate records
 
 ```{r}
 duplicate <- busstop_honeycomb %>%
@@ -233,7 +229,10 @@ busstop_honeycomb <- unique(busstop_honeycomb)
 
 ### remove grid without value of 0 (i.e. no points in side that grid)
 
-busstop_honeycomb \<- busstop_honeycomb %\>% filter(!is.na(grid_id) & grid_id \> 0)
+```{r}
+busstop_honeycomb <- busstop_honeycomb %>%
+  filter(!is.na(grid_id) & grid_id > 0)
+```
 
 ## Assign every Bus Stop with a Grid ID
 
@@ -271,7 +270,7 @@ origin_16_19 <- origin_16_19 %>%
 ## Weekday Morning Peak 6am-9am
 
 ```{r}
-total_trips_by_grid <- origin_6_9 %>%
+total_trips_by_grid_6_9 <- origin_6_9 %>%
   group_by(grid_id) %>%
   summarise(total_trips = sum(TRIPS, na.rm = TRUE))
 
@@ -281,10 +280,10 @@ Merge geospatial data
 
 ```{r}
 
-total_trips_by_grid <- total_trips_by_grid %>%
+total_trips_by_grid_6_9 <- total_trips_by_grid_6_9 %>%
   left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
 
-total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+total_trips_by_grid_sf_6_9 <- st_sf(total_trips_by_grid_6_9)
 ```
 
 Plot the Choropleth map
@@ -293,7 +292,7 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+map_honeycomb = tm_shape(total_trips_by_grid_sf_6_9) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
@@ -317,7 +316,7 @@ map_honeycomb
 ## Weekday Afternoon Peak 5pm - 8pm
 
 ```{r}
-total_trips_by_grid <- origin_17_20 %>%
+total_trips_by_grid_17_20 <- origin_17_20 %>%
   group_by(grid_id) %>%
   summarise(total_trips = sum(TRIPS, na.rm = TRUE))
 
@@ -327,10 +326,10 @@ Merge geospatial data
 
 ```{r}
 
-total_trips_by_grid <- total_trips_by_grid %>%
+total_trips_by_grid_17_20 <- total_trips_by_grid_17_20 %>%
   left_join(honeycomb_grid_sf, by = c("grid_id" = "grid_id"))
 
-total_trips_by_grid_sf <- st_sf(total_trips_by_grid)
+total_trips_by_grid_sf_17_20 <- st_sf(total_trips_by_grid_17_20)
 ```
 
 Plot the Choropleth map
@@ -339,12 +338,12 @@ Plot the Choropleth map
 
 tmap_mode("view")
 
-map_honeycomb = tm_shape(total_trips_by_grid_sf) +
+map_honeycomb1 = tm_shape(total_trips_by_grid_sf_17_20) +
   tm_fill(
     col = "total_trips",
     palette = "Reds",
     style = "cont",
-    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    title = "Total Trips Taken - Weekday Afternoon Peak 5 - 8 pm",
     id = "grid_id",
     showNA = FALSE,
     alpha = 0.6,
@@ -357,7 +356,8 @@ map_honeycomb = tm_shape(total_trips_by_grid_sf) +
   ) +
   tm_borders(col = "grey40", lwd = 0.4)
 
-map_honeycomb
+
+map_honeycomb1
 ```
 
 ## Weekday/Weekend Morning Peak 11am-2pm
@@ -366,7 +366,6 @@ map_honeycomb
 total_trips_by_grid <- origin_11_14 %>%
   group_by(grid_id) %>%
   summarise(total_trips = sum(TRIPS, na.rm = TRUE))
-
 ```
 
 Merge geospatial data
@@ -453,4 +452,137 @@ map_honeycomb
 ```
 
 ## **Local Indicators of Spatial Association (LISA) Analysis**
+
+### Computing Contiguity Spatial Weights
+
+a z-score, a pseudo p-value, and a code representing the cluster type for each statistically significant feature. The z-scores and pseudo p-values represent the statistical significance of the computed index values.
+
+#### Step 1 Check for null Neighbours
+
+```{r}
+# Check for empty neighbor sets
+empty_neighbors <- which(sapply(total_trips_by_grid_sf, length) == 0)
+
+# Print the indices of observations with no neighbors
+if (length(empty_neighbors) > 0) {
+  cat("Observations with no neighbors:", empty_neighbors, "\n")
+} else {
+  cat("All observations have at least one neighbor.\n")
+}
+```
+
+#### Step 2 Create a list of all neighbours
+
+```{r}
+# Create neighbor list
+wm08 <- total_trips_by_grid_sf %>%
+  mutate(nb = st_contiguity(area_honeycomb_grid))
+
+# Filter out observations where 'nb' contains the value 0
+# Assuming '0' is an unwanted value in the 'nb' list
+wm08 <- wm08 %>%
+  filter(!sapply(nb, function(x) any(x == 0)))
+
+# Now, you can proceed with creating the weights
+wm08 <- wm08 %>%
+  mutate(
+    wt = st_weights(nb, style = "W"),
+    .before = 1
+  )
+```
+#### Step 3 Plot a map based on the list of neighbours
+
+```{r}
+
+# Set map to static
+tmap_mode("view")
+
+map_08 <- tm_shape(wm08) +
+  tm_fill(
+    col = "total_trips",
+    palette = "PuRd",
+    style = "pretty",
+    title = "Trip sizes"
+  ) +
+  tm_layout(main.title = "Total Bus Trips Across the Island ",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+            
+  )
+
+map_08
+```
+
+```{r}
+# Step 1: Merge the data
+# Ensure that both wm08 and Origin_6_9 have 'grid_id' as a common key
+# and that it's of the same data type in both data frames
+merged_data <- wm08 %>% 
+  left_join(origin_6_9, by = "grid_id")
+
+# Step 2: Prepare the data
+# Assuming 'area_honeycomb_grid' is the geometry column in wm08
+# Convert to an sf object if not already
+if (!("sf" %in% class(merged_data))) {
+  merged_data <- st_as_sf(merged_data, geom_col = "area_honeycomb_grid")
+}
+
+# Recreate the neighbor list and spatial weights
+# Ensure 'nb' is in the correct format (e.g., created using st_contiguity or similar)
+listw <- nb2listw(merged_data$nb, style = "W")
+
+merged_data$standardized_trips <- as.numeric(scale(merged_data$TRIPS, center = TRUE, scale = TRUE))
+
+# Remove NA values from the data
+merged_data <- merged_data[!is.na(merged_data$standardized_trips), ]
+
+# Recreate the spatial weights to match the filtered data
+listw <- nb2listw(merged_data$nb, style = "W")
+
+# Check if the lengths match
+if (nrow(merged_data) != length(listw$neighbours)) {
+  stop("The length of the data and the spatial weights list do not match.")
+}
+
+# Run the Monte Carlo test for Local Moran's 
+lisa <- merged_data %>%
+  mutate(local_moran = local_moran(
+    total_trips, nb, wt, nsim = 99),
+    .before = 1) %>%
+  unnest(local_moran)
+
+# unnest the dataframe column
+tidyr::unnest(lisa)
+
+# Extracting p-values or other results from local_moran_mc
+# ...
+```
+
+```{r}
+
+# Set map to static
+tmap_mode("view")
+
+map_m1 <- tm_shape(merged_data) +
+  tm_fill(
+    col = "total_trips",
+    palette = "PuRd",
+    style = "pretty",
+    title = "Trip sizes"
+  ) +
+  tm_layout(main.title = "Total Bus Trips Across the Island ",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+map_m1
+```
 
