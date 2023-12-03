@@ -518,6 +518,19 @@ map_08 <- tm_shape(wm08) +
 map_08
 ```
 
+#### Step 4 : Calculate the Moran values using local_moran function
+
+::: {.callout-tip title="Tip with Title"}
+The local_moran functions will append the below variables for our assessment later.
+
+| Variable                     | Description                                                                |
+|--------------------------------------|----------------------------------|
+| var_ii (Variance of Ii):     | The variability of the Moran's I simulation's values across observations   |
+| z_ii (Z-score)               | The standard deviations recorded which indicates the degree of correlation |
+| p_ii (p-value)               | The probability of observing the given Moran's I                           |
+| p_ii_sim (simulated p-value) | The p-value based on the monte carlo simulations                           |
+:::
+
 ### Weekday Morning Peak Traffic
 
 ```{r}
@@ -600,14 +613,14 @@ if (nrow(merged_data_17_20) != length(listw$neighbours)) {
 }
 
 # Run the Monte Carlo test for Local Moran's 
-lisa <- merged_data_17_20 %>%
+lisa_wd_aft <- merged_data_17_20 %>%
   mutate(local_moran = local_moran(
     total_trips, nb, wt, nsim = 99),
     .before = 1) %>%
   unnest(local_moran)
 
 # unnest the dataframe column
-tidyr::unnest(lisa)
+tidyr::unnest(lisa_wd_aft)
 
 # Extracting p-values or other results from local_moran_mc
 # ...
@@ -649,14 +662,14 @@ if (nrow(merged_data_11_14) != length(listw$neighbours)) {
 }
 
 # Run the Monte Carlo test for Local Moran's 
-lisa <- merged_data_11_14 %>%
+lisa_we_m <- merged_data_11_14 %>%
   mutate(local_moran = local_moran(
     total_trips, nb, wt, nsim = 99),
     .before = 1) %>%
   unnest(local_moran)
 
 # unnest the dataframe column
-tidyr::unnest(lisa)
+tidyr::unnest(lisa_we_m)
 
 # Extracting p-values or other results from local_moran_mc
 # ...
@@ -698,14 +711,14 @@ if (nrow(merged_data_16_19) != length(listw$neighbours)) {
 }
 
 # Run the Monte Carlo test for Local Moran's 
-lisa <- merged_data_16_19 %>%
+lisa_we_e <- merged_data_16_19 %>%
   mutate(local_moran = local_moran(
     total_trips, nb, wt, nsim = 99),
     .before = 1) %>%
   unnest(local_moran)
 
 # unnest the dataframe column
-tidyr::unnest(lisa)
+tidyr::unnest(lisa_we_e)
 
 # Extracting p-values or other results from local_moran_mc
 # ...
@@ -715,7 +728,7 @@ tidyr::unnest(lisa)
 # Set map to static
 tmap_mode("plot")
 
-# weekday morning moran I values
+# Weekday Morning Moran I value
 map_wdm_moran08 <- tm_shape(lisa_wd_morn) +
   tm_fill(
     col = "ii",
@@ -732,11 +745,135 @@ map_wdm_moran08 <- tm_shape(lisa_wd_morn) +
             frame = FALSE
   )
 
-map_wdm_moran08
+# Moran I Simulated P value
+map_wdm_moran08_p <- tm_shape(lisa_wd_morn) +
+  tm_fill(
+    col = "p_ii_sim",
+    palette = "BuGn",
+    style = "pretty",
+    title = "Simulated P value"
+  ) +
+  tm_layout(main.title = "Weekday Morning Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Weekday Afternoon Moran I 
+map_wda_moran08 <- tm_shape(lisa_wd_aft) +
+  tm_fill(
+    col = "ii",
+    palette = "OrRd",
+    style = "pretty",
+    title = "Local Moran's I"
+  ) +
+  tm_layout(main.title = "Weekday Afternoon Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Moran I Simulated P value
+map_wda_moran08_p <- tm_shape(lisa_wd_aft) +
+  tm_fill(
+    col = "p_ii_sim",
+    palette = "BuGn",
+    style = "pretty",
+    title = "Simulated P value"
+  ) +
+  tm_layout(main.title = "Weekday Afternoon Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Weekend/Holiday Morning Moran I 
+map_we_moran08 <- tm_shape(lisa_we_m) +
+  tm_fill(
+    col = "ii",
+    palette = "OrRd",
+    style = "pretty",
+    title = "Local Moran's I"
+  ) +
+  tm_layout(main.title = "Weekend Morning Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Moran I Simulated P value
+map_we_moran08_p <- tm_shape(lisa_we_m) +
+  tm_fill(
+    col = "p_ii_sim",
+    palette = "BuGn",
+    style = "pretty",
+    title = "Simulated P value"
+  ) +
+  tm_layout(main.title = "Weekend Morning Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Weekend/Holiday Evening Moran I 
+map_wa_moran08 <- tm_shape(lisa_we_e) +
+  tm_fill(
+    col = "ii",
+    palette = "OrRd",
+    style = "pretty",
+    title = "Local Moran's I"
+  ) +
+  tm_layout(main.title = "Weekend Afternoon Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+
+# Moran I Simulated P value
+map_wa_moran08_p <- tm_shape(lisa_we_e) +
+  tm_fill(
+    col = "p_ii_sim",
+    palette = "BuGn",
+    style = "pretty",
+    title = "Simulated P value"
+  ) +
+  tm_layout(main.title = "Weekend Afternoon Peak Traffic",
+            main.title.size = 1,
+            main.title.position = "center",
+            legend.position = c("left", "top"),
+            legend.height = .6,
+            legend.width = .2,
+            frame = FALSE
+  )
+tmap_arrange(map_wdm_moran08, map_wa_moran08,
+             map_wdm_moran08_p, map_wa_moran08_p,
+             map_wda_moran08, map_we_moran08,
+             map_wda_moran08_p, map_we_moran08_p,
+             ncol = 2)
 
 
 ```
+#### Summary
 
+From both a visual and data analysis angle, we can see that there are significant clusters forming in parts of Singapore especially during weekday mornings. To visualise these clusterings, we will proceed to look at the mean value derived from our Local_Moran function for the different time spaces.
 ```{r}
 
 # Set map to static
