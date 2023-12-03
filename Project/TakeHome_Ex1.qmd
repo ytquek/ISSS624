@@ -468,11 +468,14 @@ From a data analysis point of view, we see that there is a huge fluctuations in 
 
 Towards the weekend, the numbers start to scale back significantly to a peak of 100k indicating citizens of Singapore are less likely to travel by the bus during the weekends.
 
-## **Local Indicators of Spatial Association (LISA) Analysis**
+# **Local Indicators of Spatial Association (LISA) Analysis**
+
+## Introduction
+We will use the a Moran I function to compute a z-score, a pseudo p-value, and a code representing the cluster type for each statistically significant feature. 
 
 ### Computing Contiguity Spatial Weights
 
-a z-score, a pseudo p-value, and a code representing the cluster type for each statistically significant feature. The z-scores and pseudo p-values represent the statistical significance of the computed index values.
+Below are the steps to do so
 
 #### Step 1 Check for null Neighbours
 
