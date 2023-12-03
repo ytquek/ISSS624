@@ -17,8 +17,6 @@ Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** pac
 
 ```{r}
 pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, spdep)
-install.packages("wesanderson")
-library(wesanderson)
 
 ```
 
@@ -53,6 +51,8 @@ origtrip_6_9 <- odbus %>%
   summarise(TRIPS = sum(TOTAL_TRIPS))
 ```
 
+Writing the data to RDS
+
 ```{r}
 kable(head(origtrip_6_9))
 write_rds(origtrip_6_9, "data/rds/origtrip_6_9.rds")
@@ -70,6 +70,8 @@ origtrip_17_20 <- odbus %>%
 glimpse(origtrip_17_20)
 ```
 
+Writing the data to RDS
+
 ```{r}
 kable(head(origtrip_17_20))
 write_rds(origtrip_17_20, "data/rds/origtrip_17_20.rds")
@@ -85,6 +87,8 @@ origtrip_11_14 <- odbus %>%
   group_by(ORIGIN_PT_CODE) %>%
   summarise(TRIPS = sum(TOTAL_TRIPS))
 ```
+
+Writing the data to RDS
 
 ```{r}
 kable(head(origtrip_11_14))
@@ -102,10 +106,14 @@ origtrip_16_19 <- odbus %>%
   summarise(TRIPS = sum(TOTAL_TRIPS))
 ```
 
+Writing the data to RDS
+
 ```{r}
 kable(head(origtrip_16_19))
 write_rds(origtrip_16_19, "data/rds/origtrip_16_19.rds")
 ```
+
+Reading each RDS file
 
 ```{r}
 origtrip_11_14 <- read_rds("data/rds/origtrip_11_14.rds")
@@ -454,7 +462,7 @@ tm_shape(total_trips_by_grid_sf) +
 
 ```
 
-## Summary
+## **Summary of our data analysis**
 
 From a data analysis point of view, we see that there is a huge fluctuations in the 4 time spaces of Bus Trips. Starting from Weekday Morning 6 to 9 am with a peak of near 300k trips all the way till Weekday Afternoon 5-8pm of 500k.
 
@@ -529,6 +537,8 @@ map_08
 
 #### Step 4 : Calculate the Moran values using local_moran function
 
+For sanity purposes, we will fold the other timezones (weekday & weekday afternoon) code other than the first dataframe for Weekday Morning.
+
 ::: {.callout-tip title="Tip with Title"}
 The local_moran functions will append the below variables for our assessment later.
 
@@ -589,6 +599,8 @@ tidyr::unnest(lisa_wd_morn)
 ### Weekday Afternoon/Evening Peak Traffic
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 # Set seed to ensure that results from simulation are reproducible
 set.seed(1234)
 # Step 1: Merge the data
@@ -631,13 +643,13 @@ lisa_wd_aft <- merged_data_17_20 %>%
 # unnest the dataframe column
 tidyr::unnest(lisa_wd_aft)
 
-# Extracting p-values or other results from local_moran_mc
-# ...
 ```
 
 ### Weekend/Holiday Morning Peak Traffic
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 # Set seed to ensure that results from simulation are reproducible
 set.seed(1234)
 # Step 1: Merge the data
@@ -679,14 +691,13 @@ lisa_we_m <- merged_data_11_14 %>%
 
 # unnest the dataframe column
 tidyr::unnest(lisa_we_m)
-
-# Extracting p-values or other results from local_moran_mc
-# ...
 ```
 
 ### Weekend/Holiday Evening Peak Traffic
 
 ```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 # Set seed to ensure that results from simulation are reproducible
 set.seed(1234)
 # Step 1: Merge the data
@@ -728,12 +739,10 @@ lisa_we_e <- merged_data_16_19 %>%
 
 # unnest the dataframe column
 tidyr::unnest(lisa_we_e)
-
-# Extracting p-values or other results from local_moran_mc
-# ...
 ```
 
 ```{r}
+# Example of a how we derive Moran I and a Simulated Moran I P value for a Weekday Morning.
 # Set map to static
 tmap_mode("plot")
 
@@ -762,7 +771,7 @@ map_wdm_moran08_p <- tm_shape(lisa_wd_morn) +
     style = "pretty",
     title = "Simulated P value"
   ) +
-  tm_layout(main.title = "Weekday Morning Peak Traffic",
+  tm_layout(
             main.title.size = 1,
             main.title.position = "center",
             legend.position = c("left", "top"),
@@ -771,6 +780,11 @@ map_wdm_moran08_p <- tm_shape(lisa_wd_morn) +
             frame = FALSE
   )
 
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
 # Weekday Afternoon Moran I 
 map_wda_moran08 <- tm_shape(lisa_wd_aft) +
   tm_fill(
@@ -796,7 +810,7 @@ map_wda_moran08_p <- tm_shape(lisa_wd_aft) +
     style = "pretty",
     title = "Simulated P value"
   ) +
-  tm_layout(main.title = "Weekday Afternoon Peak Traffic",
+  tm_layout(
             main.title.size = 1,
             main.title.position = "center",
             legend.position = c("left", "top"),
@@ -809,7 +823,7 @@ map_wda_moran08_p <- tm_shape(lisa_wd_aft) +
 map_we_moran08 <- tm_shape(lisa_we_m) +
   tm_fill(
     col = "ii",
-    palette = "OrRd",
+    palette = "PuRd",
     style = "pretty",
     title = "Local Moran's I"
   ) +
@@ -830,7 +844,7 @@ map_we_moran08_p <- tm_shape(lisa_we_m) +
     style = "pretty",
     title = "Simulated P value"
   ) +
-  tm_layout(main.title = "Weekend Morning Peak Traffic",
+  tm_layout(
             main.title.size = 1,
             main.title.position = "center",
             legend.position = c("left", "top"),
@@ -843,7 +857,7 @@ map_we_moran08_p <- tm_shape(lisa_we_m) +
 map_wa_moran08 <- tm_shape(lisa_we_e) +
   tm_fill(
     col = "ii",
-    palette = "OrRd",
+    palette = "PuRd",
     style = "pretty",
     title = "Local Moran's I"
   ) +
@@ -864,7 +878,7 @@ map_wa_moran08_p <- tm_shape(lisa_we_e) +
     style = "pretty",
     title = "Simulated P value"
   ) +
-  tm_layout(main.title = "Weekend Afternoon Peak Traffic",
+  tm_layout(
             main.title.size = 1,
             main.title.position = "center",
             legend.position = c("left", "top"),
@@ -872,6 +886,9 @@ map_wa_moran08_p <- tm_shape(lisa_we_e) +
             legend.width = .2,
             frame = FALSE
   )
+```
+
+```{r}
 tmap_arrange(map_wdm_moran08, map_wa_moran08,
              map_wdm_moran08_p, map_wa_moran08_p,
              map_wda_moran08, map_we_moran08,
@@ -881,13 +898,13 @@ tmap_arrange(map_wdm_moran08, map_wa_moran08,
 
 ```
 
-#### Summary
+#### Step 5: **Concluding our findings**
 
 From both a visual and data analysis angle, we can see that there are significant clusters forming in parts of Singapore especially during weekday mornings. To visualise these clusterings, we will proceed to look at the mean value derived from our Local_Moran function for the different time spaces.
 
-### Visualising Clusters \< 0.05 p value
+### Visualizing Clusters \< 0.05 p value
 
-The spatial clusters are visualised in the map below, with one showing all values and the other displaying only statistically significant clusters (p-value \<0.05):
+The spatial clusters are visualize in the maps below with one showing all values and the others displaying only statistically significant clusters (p-value \<0.05) with both simulated and non simulated data:
 
 ```{r}
 tmap_mode("plot")
@@ -953,18 +970,13 @@ tmap_arrange(plot_wdm_mean,plot_wdm_mean_sim ,
 
 ```
 
-#### Summary
+#### **Summary**
 
 We have two maps labeled "Map B: Local Moran Clusters Simulated" and "Map C: Local Moran Clusters" both with a p-value of 0.05 or less indicating statistically significant spatial clusters the data.
 
-Map B shows actual observed data with similar clusters:
-- Low-Low areas appear more dispersed, suggesting pockets of low demand spread throughout the region.
-- High-Low areas are also present but less prevalent than in the simulated map.
-- Pink areas (Low-High) are not present, indicating no significant points with low traffic surrounded by high traffic areas.
-- Red areas (High-High) represent highly trafficked stops in areas that also have high traffic, possibly central city locations or busy corridors.
+Map B shows actual observed data with similar clusters: - Low-Low areas appear more dispersed, suggesting pockets of low demand spread throughout the region. - High-Low areas are also present but less prevalent than in the simulated map. - Pink areas (Low-High) are not present, indicating no significant points with low traffic surrounded by high traffic areas. - Red areas (High-High) represent highly trafficked stops in areas that also have high traffic, possibly central city locations or busy corridors.
 
-Map C ("Simulated")  represents a simulated scenario:
+Map C ("Simulated") represents a simulated scenario:
 
-- Light Purple (Low-Low): Areas with lower than average bus traffic that are surrounded by areas with similarly low traffic, suggesting regions of uniformly low demand or service.
-- Dark Purple (High-Low): These spots indicate bus stops with high traffic that are not surrounded by similarly high-traffic areas, which could represent major transit hubs or end-of-line stops.
-
+-   Light Purple (Low-Low): Areas with lower than average bus traffic that are surrounded by areas with similarly low traffic, suggesting regions of uniformly low demand or service.
+-   Dark Purple (High-Low): These spots indicate bus stops with high traffic that are not surrounded by similarly high-traffic areas, which could represent major transit hubs or end-of-line stops.
