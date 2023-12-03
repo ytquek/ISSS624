@@ -17,6 +17,9 @@ Lets make make sure that **sfdep**, **sf**, **tmap** and **tidyverse** pac
 
 ```{r}
 pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, zoo, Kendall, spdep)
+install.packages("wesanderson")
+library(wesanderson)
+
 ```
 
 ### Importing OD data into R
@@ -871,29 +874,56 @@ tmap_arrange(map_wdm_moran08, map_wa_moran08,
 
 
 ```
+
 #### Summary
 
 From both a visual and data analysis angle, we can see that there are significant clusters forming in parts of Singapore especially during weekday mornings. To visualise these clusterings, we will proceed to look at the mean value derived from our Local_Moran function for the different time spaces.
+
+### Visualising Clusters \< 0.05 p value
+
+The spatial clusters are visualised in the map below, with one showing all values and the other displaying only statistically significant clusters (p-value \<0.05):
+
 ```{r}
+tmap_mode("plot")
 
-# Set map to static
-tmap_mode("view")
-
-map_m1 <- tm_shape(merged_data) +
+plot_wdm_all <- 
+  tm_shape(lisa_wd_morn) +
   tm_fill(
-    col = "total_trips",
-    palette = "PuRd",
-    style = "pretty",
-    title = "Trip sizes"
+    col = "mean",
+    style = "cat",
+    palette = "Spectral"
   ) +
-  tm_layout(main.title = "Total Bus Trips Across the Island ",
-            main.title.size = 1,
-            main.title.position = "center",
-            legend.position = c("left", "top"),
-            legend.height = .6,
-            legend.width = .2,
-            frame = FALSE
-  )
+  tm_layout(
+    main.title = "Map A: Local Moran Clusters",
+    main.title.size = 1,
+    main.title.position = "center",
+    frame = FALSE)
 
-map_m1
+mean_wdm <- lisa_wd_morn  %>%
+  filter(p_ii <= 0.05)
+
+plot_wdm_mean <- 
+  tm_shape(lisa_wd_morn) +
+  tm_polygons(
+    col = "#ffffff"
+  ) +
+  tm_borders(col = NA) +
+  tm_shape(mean_wdm) +
+  tm_fill(
+    col = "mean",
+    style = "cat",
+    palette = "PuRd"
+  ) +
+  tm_layout(
+    main.title = "Map B: Local Moran Clusters (P value is 0.05 or lesser)",
+    main.title.size = 1,
+    main.title.position = "center",
+    frame = FALSE)
+
+tmap_arrange(plot_wdm_all, plot_wdm_mean,
+             ncol = 2)
+
 ```
+#### Summary
+
+Map B illustrates significant spatial patterns indicating areas of high and low bus trip concentration with a confidence level of 95%. Low-Low clusters suggest regions with consistently low bus trip demand. High-Low points indicates busy stops not surrounded by high-demand areas suggesting isolated transit hubs and the absence of Low-High clusters and the presence of High-High points reflect central zones with heavy bus usage.
