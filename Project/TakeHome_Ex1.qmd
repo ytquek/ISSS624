@@ -230,14 +230,14 @@ duplicate <- busstop_honeycomb %>%
 busstop_honeycomb <- unique(busstop_honeycomb)
 ```
 
-### remove grid without value of 0 (i.e. no points in side that grid)
+### Filter grid without values or a grid_id (i.e. no points in side that grid)
 
 ```{r}
 busstop_honeycomb <- busstop_honeycomb %>%
   filter(!is.na(grid_id) & grid_id > 0)
 ```
 
-## Assign every Bus Stop with a Grid ID
+### Assign every Bus Stop with a Grid ID
 
 ```{r}
 origin_6_9 <- left_join(busstop_honeycomb, origtrip_6_9,
@@ -438,7 +438,7 @@ tm_shape(total_trips_by_grid_sf) +
     col = "total_trips",
     palette = "Reds",
     style = "cont",
-    title = "Total Trips Taken - Weekday Morning Peak 6-9am",
+    title = "Total Trips Taken - Weekend Morning Peak 4-7pm",
     id = "grid_id",
     showNA = FALSE,
     alpha = 0.6,
@@ -453,6 +453,12 @@ tm_shape(total_trips_by_grid_sf) +
 
 
 ```
+
+## Summary
+
+From a data analysis point of view, we see that there is a huge fluctuations in the 4 time spaces of Bus Trips. Starting from Weekday Morning 6 to 9 am with a peak of near 300k trips all the way till Weekday Afternoon 5-8pm of 500k.
+
+Towards the weekend, the numbers start to scale back significantly to a peak of 100k indicating citizens of Singapore are less likely to travel by the bus during the weekends.
 
 ## **Local Indicators of Spatial Association (LISA) Analysis**
 
@@ -902,6 +908,9 @@ plot_wdm_all <-
 mean_wdm <- lisa_wd_morn  %>%
   filter(p_ii <= 0.05)
 
+mean_wd_sim <- lisa_wd_morn  %>%
+  filter(p_ii_sim <= 0.05)
+
 plot_wdm_mean <- 
   tm_shape(lisa_wd_morn) +
   tm_polygons(
@@ -920,10 +929,42 @@ plot_wdm_mean <-
     main.title.position = "center",
     frame = FALSE)
 
-tmap_arrange(plot_wdm_all, plot_wdm_mean,
+plot_wdm_mean_sim <- 
+  tm_shape(lisa_wd_morn) +
+  tm_polygons(
+    col = "#ffffff"
+  ) +
+  tm_borders(col = NA) +
+  tm_shape(mean_wd_sim) +
+  tm_fill(
+    col = "mean",
+    style = "cat",
+    palette = "PuRd"
+  ) +
+  tm_layout(
+    main.title = "Map C: Local Moran Clusters Simulated (P value is 0.05 or lesser)",
+    main.title.size = 1,
+    main.title.position = "center",
+    frame = FALSE)
+
+plot_wdm_all
+tmap_arrange(plot_wdm_mean,plot_wdm_mean_sim ,
              ncol = 2)
 
 ```
+
 #### Summary
 
-Map B illustrates significant spatial patterns indicating areas of high and low bus trip concentration with a confidence level of 95%. Low-Low clusters suggest regions with consistently low bus trip demand. High-Low points indicates busy stops not surrounded by high-demand areas suggesting isolated transit hubs and the absence of Low-High clusters and the presence of High-High points reflect central zones with heavy bus usage.
+We have two maps labeled "Map B: Local Moran Clusters Simulated" and "Map C: Local Moran Clusters" both with a p-value of 0.05 or less indicating statistically significant spatial clusters the data.
+
+Map B shows actual observed data with similar clusters:
+- Low-Low areas appear more dispersed, suggesting pockets of low demand spread throughout the region.
+- High-Low areas are also present but less prevalent than in the simulated map.
+- Pink areas (Low-High) are not present, indicating no significant points with low traffic surrounded by high traffic areas.
+- Red areas (High-High) represent highly trafficked stops in areas that also have high traffic, possibly central city locations or busy corridors.
+
+Map C ("Simulated")  represents a simulated scenario:
+
+- Light Purple (Low-Low): Areas with lower than average bus traffic that are surrounded by areas with similarly low traffic, suggesting regions of uniformly low demand or service.
+- Dark Purple (High-Low): These spots indicate bus stops with high traffic that are not surrounded by similarly high-traffic areas, which could represent major transit hubs or end-of-line stops.
+
