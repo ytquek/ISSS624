@@ -1,0 +1,162 @@
+---
+title: "In-class_Ex4"
+---
+
+## **Overview**
+
+-   performing geocoding using data downloaded from data.gov.sg
+
+-   calibrating Geographically Weighted Poisson Regression
+
+## **Getting Started**
+
+```{r}
+pacman::p_load(tmap, sf, httr, tidyverse)
+```
+
+## **Geocoding using SLA API**
+
+Geocoding - process of aspatial description of a location e.g. address
+
+```{r}
+#| eval: false
+
+url <- "https://www.onemap.gov.sg/api/common/elastic/search"
+
+csv <- read_csv("Data/Aspatial/Generalinformationofschools.csv")
+postcodes <- csv$`postal_code`
+
+found <- data.frame()
+not_found <- data.frame()
+
+for(postcode in postcodes){
+  query<-list('searchVal'=postcode,'returnGeom'='Y','getAddrDetails'='Y', 'pageNum'='1')
+  res <- GET(url,query=query)
+  
+  if((content(res)$found)!=0){
+    found <- rbind(found, data.frame(content(res))[4:13])
+  } else{
+    not_found = data.frame(postcode)
+  }
+}
+```
+
+```{r}
+merged = merge(csv, found, by.x= 'postal_code', by.y = 'results.POSTAL', all=TRUE)
+write.csv(merged, file = "Data/Aspatial/schools.csv")
+write.csv(not_found, file = "Data/Aspatial/not_found.csv")
+```
+
+### Importing geospatial data
+
+```{r}
+mpsz <- st_read(dsn = "Data/Geospatial",
+                layer = "MPSZ-2019") %>%
+  st_transform(crs = 3414)
+```
+
+### **Importing & tidying school data**
+
+```{r}
+schools <- read_csv("Data/Aspatial/Generalinformationofschools.csv")
+
+```
+
+Note: Zhenghua Secondary School missing. Manually update latitude and longitude for ZHENGHUA SECONDARY SCHOOL
+
+-   Latitude: 1.389279
+
+-   Longitude: 103.7651
+
+```{r}
+
+merged <- merged %>%
+  mutate(
+    results.LATITUDE = ifelse(school_name == "ZHENGHUA SECONDARY SCHOOL", 1.389279, results.LATITUDE),
+    results.LONGITUDE = ifelse(school_name == "ZHENGHUA SECONDARY SCHOOL", 103.7651, results.LONGITUDE)
+  )
+```
+
+```{r}
+
+schools <- merged %>%
+  rename(latitude = "results.LATITUDE", longitude = "results.LONGITUDE") %>%
+  select(postal_code, school_name, latitude, longitude)
+```
+
+Note: schools is a tibble dataframe object class
+
+### **Converting an aspatial data into a simple features tibble data.frame**
+
+```{r}
+schools_sf <- st_as_sf(schools,
+                       coords = c("longitude", "latitude"),
+                       crs =4326) %>%
+  st_transform(crs = 3414)
+```
+
+### **Plotting a point simple feature layer**
+
+```{r}
+
+#| code-fold: true
+#| code-sumary: "Show the code chunk"
+tmap_mode("view")
+
+tm_shape(schools_sf) +
+  tm_dots() +
+tm_view(set.zoom.limits = c(11,14))
+
+tmap_mode("plot")
+```
+
+## **Preparing**
+
+```{r}
+mpsz$`SCHOOL_COUNT` <- lengths(
+  st_intersects(
+    mpsz, schools_sf
+  )
+)
+```
+
+Summary statistics
+
+```{r}
+summary(mpsz$SCHOOL_COUNT)
+```
+
+```{r}
+business_sf <- st_read(dsn = "data/geospatial", layer = "Business") %>%
+  st_transform(crs = 3414)
+```
+
+```{r}
+tmap_options(check.and.fix = TRUE)
+tm_shape(mpsz) +
+  tm_polygons() +
+tm_shape(business_sf) +
+  tm_dots()
+```
+
+## Data Integration and Wrangling
+
+```{r}
+
+flow_data <- read_rds("Data/rds/flow_data_tidy.rds")
+
+flow_data <- flow_data %>%
+  left_join(mpsz,
+            by = c("DESTIN_SZ" = "SUBZONE_C"))
+```
+
+### Checking for variables with zero values
+
+Since Poisson Regression is based off log and log 0 is undefined, it is important to ensure there are no 0 values
+
+```{r}
+flow_data$SCHOOL_COUNT <- ifelse(
+  flow_data$SCHOOL_COUNT ==0,
+  0.99
+)
+```
