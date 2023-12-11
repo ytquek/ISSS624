@@ -471,7 +471,8 @@ Towards the weekend, the numbers start to scale back significantly to a peak of 
 # **Local Indicators of Spatial Association (LISA) Analysis**
 
 ## Introduction
-We will use the a Moran I function to compute a z-score, a pseudo p-value, and a code representing the cluster type for each statistically significant feature. 
+
+We will use the a Moran I function to compute a z-score, a pseudo p-value, and a code representing the cluster type for each statistically significant feature.
 
 ### Computing Contiguity Spatial Weights
 
@@ -546,7 +547,7 @@ For sanity purposes, we will fold the other timezones (weekday & weekday afterno
 The local_moran functions will append the below variables for our assessment later.
 
 | Variable                     | Description                                                                |
-|--------------------------------------|----------------------------------|
+|------------------------------|----------------------------------------------------------------------------|
 | var_ii (Variance of Ii):     | The variability of the Moran's I simulation's values across observations   |
 | z_ii (Z-score)               | The standard deviations recorded which indicates the degree of correlation |
 | p_ii (p-value)               | The probability of observing the given Moran's I                           |

@@ -11,7 +11,7 @@ title: "In-class_Ex4"
 ## **Getting Started**
 
 ```{r}
-pacman::p_load(tmap, sf, httr, tidyverse)
+pacman::p_load(sf, sfdep, tmap, tidyverse, knitr, plotly, httr, dplyr)
 ```
 
 ## **Geocoding using SLA API**
@@ -19,10 +19,8 @@ pacman::p_load(tmap, sf, httr, tidyverse)
 Geocoding - process of aspatial description of a location e.g. address
 
 ```{r}
-#| eval: false
 
 url <- "https://www.onemap.gov.sg/api/common/elastic/search"
-
 csv <- read_csv("Data/Aspatial/Generalinformationofschools.csv")
 postcodes <- csv$`postal_code`
 
@@ -141,22 +139,223 @@ tm_shape(business_sf) +
 
 ## Data Integration and Wrangling
 
+Import the rds file into R environment
+
 ```{r}
+flow_data <- read_rds("data/rds/flow_data_tidy.rds") 
+```
 
-flow_data <- read_rds("Data/rds/flow_data_tidy.rds")
+```{r}
+flow_data$FlowNoIntra <- ifelse(
+  flow_data$ORIGIN_SZ == flow_data$DESTIN_SZ,
+  0, flow_data$MORNING_PEAK)
+flow_data$offset <- ifelse(
+  flow_data$ORIGIN_SZ == flow_data$DESTIN_SZ,
+  0.000001, 1)
+```
 
+```{r}
 flow_data <- flow_data %>%
-  left_join(mpsz,
-            by = c("DESTIN_SZ" = "SUBZONE_C"))
+  filter(FlowNoIntra > 0)
+
 ```
-
-### Checking for variables with zero values
-
-Since Poisson Regression is based off log and log 0 is undefined, it is important to ensure there are no 0 values
 
 ```{r}
-flow_data$SCHOOL_COUNT <- ifelse(
-  flow_data$SCHOOL_COUNT ==0,
-  0.99
-)
+inter_zonal_flow <- flow_data %>%
+  rename(TRIPS =MORNING_PEAK,
+         DIST = dist)
 ```
+
+
+# Model Calibration
+
+```{r}
+pacman::p_load(sp, DT, stplanr,
+               performance, reshape2,
+               ggpubr, units)
+```
+
+
+## Unconstrained SIM
+
+```{r}
+uncSIM <- glm(formula = TRIPS ~ 
+                log(SCHOOL_COUNT) + 
+                log(RETAIL_COUNT) +
+                log(DIST),
+              family = poisson(link = "log"),
+              data = inter_zonal_flow,
+              na.action = na.exclude)
+uncSIM
+```
+
+### Goodness-of-Fit
+
+```{r}
+CalcRSquared <- function(observed,estimated){
+  r <- cor(observed,estimated)
+  R2 <- r^2
+  R2
+}
+```
+
+```{r}
+CalcRSquared(uncSIM$data$TRIPS, uncSIM$fitted.values)
+```
+
+```{r}
+r2_mcfadden(uncSIM)
+```
+
+## Origin constrained SIM
+
+```{r}
+orcSIM <- glm(formula = TRIPS ~
+                ORIGIN_SZ +
+                log(SCHOOL_COUNT) +
+                log(RETAIL_COUNT) +
+                log(DIST) - 1,
+              family = poisson(link = "log"),
+              data = inter_zonal_flow,
+              na.action = na.exclude)
+summary(orcSIM)
+```
+
+### Goodness-of-Fit
+
+```{r}
+CalcRSquared <- function(observed, estimated){
+  r  <- cor(observed,estimated)
+  R2 <- r^2
+  R2
+}
+```
+
+Examine how the constraints hold for destinations
+
+```{r}
+CalcRSquared(orcSIM$data$TRIPS, orcSIM$fitted.values)
+```
+
+## Destination Constrained
+
+```{r}
+decSIM <- glm(formula = TRIPS ~ 
+                DESTIN_SZ + 
+                log(SCHOOL_COUNT) + 
+                log(DIST),
+              family = poisson(link = "log"),
+              data = inter_zonal_flow,
+              na.action = na.exclude)
+summary(decSIM)
+```
+
+```{r}
+CalcRSquared(decSIM$data$TRIPS, decSIM$fitted.values)
+```
+
+## Doubly Constrained
+
+```{r}
+dbcSIM <- glm(formula = TRIPS ~
+                ORIGIN_SZ +
+                DESTIN_SZ +
+                log(DIST),
+              family = poisson(link = "log"),
+              data = inter_zonal_flow,
+              na.action = na.exclude)
+dbcSIM
+```
+
+## Model Comparison
+
+```{r}
+model_list <- list(unconstrained=uncSIM,
+                   originConstrained=orcSIM,
+                   destinationConstrained=decSIM,
+                   doublyConstrained=dbcSIM)
+
+compare_performance(model_list,
+                    metrics = "RMSE")
+```
+
+## Visualising Fitted
+
+Extract the fitted values from each model
+
+Unconstrainted Model
+
+```{r}
+df <- as.data.frame(uncSIM$fitted.values) %>%
+  round(digits = 0)
+
+inter_zonal_flow <- inter_zonal_flow %>%
+  cbind(df) %>%
+  rename(uncTRIPS = `uncSIM.fitted.values`)
+```
+
+Origin Constrained Model
+
+```{r}
+df <- as.data.frame(orcSIM$fitted.values) %>%
+  round(digits = 0)
+
+inter_zonal_flow <- inter_zonal_flow %>%
+  cbind(df) %>%
+  rename(orcTRIPS = `orcSIM.fitted.values`)
+```
+
+Destination Constrained Model
+
+```{r}
+df <- as.data.frame(decSIM$fitted.values) %>%
+  round(digits = 0)
+
+inter_zonal_flow <- inter_zonal_flow %>%
+  cbind(df) %>%
+  rename(decTRIPS = `decSIM.fitted.values`)
+```
+
+Doubly Constrained Model
+
+```{r}
+df <- as.data.frame(dbcSIM$fitted.values) %>%
+  round(digits = 0)
+
+inter_zonal_flow <- inter_zonal_flow %>%
+  cbind(df) %>%
+  rename(dbcTRIPS = `dbcSIM.fitted.values`)
+```
+
+Plotting graphs
+
+```{r}
+unc_p <- ggplot(data = inter_zonal_flow,
+                aes(x = uncTRIPS,
+                    y = TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+orc_p <- ggplot(data = inter_zonal_flow,
+                aes(x = orcTRIPS,
+                    y = TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+dec_p <- ggplot(data = inter_zonal_flow,
+                aes(x = decTRIPS,
+                    y = TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+dbc_p <- ggplot(data = inter_zonal_flow,
+                aes(x = dbcTRIPS,
+                    y = TRIPS)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+ggarrange(unc_p, orc_p, dec_p, dbc_p,
+          ncol = 2,
+          nrow = 2)
+```
+
