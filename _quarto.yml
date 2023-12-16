@@ -32,7 +32,7 @@ website:
           - text: Exercise 1
             href: Project/TakeHome_Ex1.html
           - text: Exercise 2
-            href: Project/takehome_ex2.html
+            href: Project/takehome_ex2_backup.html
           
     right:
       - href: index.qmd

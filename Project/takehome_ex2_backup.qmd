@@ -1,0 +1,651 @@
+---
+title: "Take Home Exercise 2"
+date: "6 December 2023"
+date-modified: "last-modified"
+format: html
+execute:
+  echo: true
+  warning: false
+editor: visual
+---
+
+# Geospatial Data Science
+
+## Project Summary
+
+This project aims to show an example of how disparate data sources can be integrated, analysed, and modelled to support policy making decision.
+
+In line with the nature of this course, it will be Geospatial data science and analysis (GDSA) centric by using openly available data such as Instituitional Property Information & Commercial listings with SG's public bus commuter flows to determine urban mobility patterns.
+
+## Getting Started
+
+-   sf - importing, integrating, processing and transforming geospatial data.
+
+-   tidyverse & reshape2 - importing, integrating, wrangling and visualising data.
+
+-   tmap - creating thematic maps.
+
+-   performance & ggpubr - for doing spatial interaction modeling
+
+```{r}
+pacman::p_load(tmap, sf, sp, DT, stplanr,
+               performance, reshape2,
+               ggpubr, tidyverse, httr, dplyr, gridExtra)
+```
+
+## Preparing the Flow Data
+
+### Importing the aspatial data
+
+We will proceed to import the `Passenger Volume by Origin Destination Bus Stops` October data set downloaded from LTA DataMall.
+
+```{r}
+odbus <- read_csv("data/aspatial/origin_destination_bus_202310.csv")
+# removing duplicated line items
+odbus <- distinct(odbus)
+# double checking data is imported successfully
+glimpse(odbus)
+str(odbus)
+```
+
+::: {.callout-tip title="Tip with Title"}
+Given `ORIGIN_PT_CODE` and `DESTINATION_PT_CODE` columns are character data type, we will need to convert them to factors
+:::
+
+```{r}
+odbus$ORIGIN_PT_CODE <-
+as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <-
+as.factor(odbus$DESTINATION_PT_CODE)
+```
+
+#### Filtering data
+
+Next, we will filter out trips that occurs on "Weekday" and "6-9am"
+
+```{r}
+wdmp <- odbus %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter(TIME_PER_HOUR >= 6 & TIME_PER_HOUR <= 9) %>%
+  group_by(ORIGIN_PT_CODE, DESTINATION_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+head(wdmp)
+```
+
+From wdmp, we see a total of 242208 observations. Next we will proceed to write wdmp into rds format before importing
+
+```{r}
+write_rds(wdmp, "data/rds/wdmp.rds") 
+```
+
+```{r}
+wdmp <- read_rds("data/rds/wdmp.rds") 
+```
+
+### Geospatial Data
+
+We will be using 2 sets of geospatial data for this exercise
+
+-   BusStop Location from LTA Data Mall
+-   2019 URA Master Plan
+
+#### Importing Bus Stop Locations
+
+First we will import the BusStop locations
+
+```{r}
+busstop <- st_read(dsn = "data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+glimpse(busstop)
+```
+
+Next we will use the following code chunk to check for duplicates
+
+```{r}
+duplicates <- busstop %>%
+  st_set_geometry(NULL) %>%
+  group_by(BUS_STOP_N,
+           BUS_ROOF_N
+  ) %>%
+  # count each instance of busstop appearance by the column bus_stop_n and bus_roof_n
+  summarise(
+    count = n()
+  ) %>%
+  ungroup() %>%
+  # retrieve bustops with more than single instance
+  filter(count > 1)
+
+glimpse(duplicates)
+```
+
+In total, 7 bus stops were found to have duplicates. It is unclear why this is the case, based on the student's external research using Google Maps, no distinct or unique properties of the bus stops were found. They were neither interchanges nor a single bus stop serving a loop.
+
+We will proceed to use the *dplyr* package to remove the first instance of duplicates from the busstop tibble data.
+
+```{r}
+cleaned_busstop <- busstop %>% distinct(BUS_STOP_N,
+           BUS_ROOF_N, .keep_all = TRUE)
+
+class(cleaned_busstop)
+sf::st_geometry(cleaned_busstop)
+
+```
+
+Double checking the cleaned_busstop data frame no longer have duplicates
+
+```{r}
+duplicates1 <- cleaned_busstop %>%
+  st_set_geometry(NULL) %>%
+  group_by(BUS_STOP_N,
+           BUS_ROOF_N
+  ) %>%
+  # count each instance of busstop appearance by the column bus_stop_n and bus_roof_n
+  summarise(
+    count = n()
+  ) %>%
+  ungroup() %>%
+  # retrieve bustops with more than single instance
+  filter(count > 1)
+
+glimpse(duplicates1)
+```
+
+#### Importing Whole of SG Map
+
+Next we will import the MPSZ-2019 layer which is representative of Singapore
+
+```{r}
+mpsz <- read_rds("data/rds/mpsz.rds")
+mpsz
+```
+
+## Setting up Hexagon Grid
+
+The following code chunks create a hexagonal grid frame which spans a total of 750m from edge to edge for each hexagon to represent the traffic analysis zone (TAZ).
+
+### Step 1. Drawing the Hexagon Grid
+
+#### Drawing a hexagon grid over mpsz
+
+```{r}
+hexagon_grid = st_make_grid(mpsz, c(750, 750), what = "polygons", square = FALSE)
+```
+
+Next we will add a **grid_id** column to the hexagon grid before assigning the bus stops to it
+
+```{r}
+grid_sf = st_sf(hexagon_grid) %>%
+  mutate(grid_id = 1:length(lengths(hexagon_grid)))
+```
+
+```{r}
+busstop_grid <- st_intersection(grid_sf,cleaned_busstop) %>%
+  select(BUS_STOP_N, grid_id) %>%
+  st_drop_geometry()
+```
+
+#### Saving the new busstopgrid dataframe into RDS
+
+```{r}
+write_rds(busstop_grid, "data/rds/busstop_grid.rds")
+```
+
+### Step 2. Preparing origin to destination data
+
+#### Preparing origin trip id
+
+We will do a left join using our wdmp dataframe with busstop grid using **ORIGIN_PT_CODE**
+
+```{r}
+wdmp <- wdmp %>%
+  left_join(busstop_grid, by = c("ORIGIN_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(ori_grid = grid_id) %>%
+  distinct()
+```
+
+#### Preparing destination trip id
+
+We will do a left join using our wdmp dataframe with busstop grid using **DESTINATION_PT_CODE**
+
+```{r}
+wdmp <- wdmp %>%
+  left_join(busstop_grid, by = c("DESTINATION_PT_CODE" = "BUS_STOP_N")) %>%
+  rename(dest_grid = grid_id) %>%
+  distinct()
+```
+
+To avoid cluttering our wdmp frame, we will remove the unused columns
+
+```{r}
+  wdmp <- na.omit(wdmp)
+```
+
+```{r}
+  wdmp <- wdmp %>%
+  ungroup() %>%
+  select(-c(ORIGIN_PT_CODE, DESTINATION_PT_CODE)) 
+```
+
+To avoid any issues later on for plotting flow line with **grid_sf**, we will need to re-order the table to promote original grid id column first.
+
+```{r}
+wdmp <- wdmp %>%
+  select(ori_grid, dest_grid, TRIPS)
+```
+
+## Visualising Spatial Interaction
+
+The following steps are taken to visualise the traffic flows between TAZs.
+
+### Removing intra-zonal flows
+
+```{r}
+wdmp_inter <- wdmp[wdmp$ori_grid != wdmp$dest_grid, ]
+```
+
+### Creating desire lines
+
+Desire lines are straight lines which indicates the linear movement from origin to destination. We will use the od2line() function to create it.
+
+```{r}
+# Check for non-matching IDs
+wdmp_inter$ori_grid[!wdmp_inter$ori_grid %in% grid_sf$grid_id]
+# Check column types
+str(wdmp_inter)
+str(grid_sf)
+#Check for NA fields
+sum(is.na(wdmp_inter$ori_grid))
+sum(is.na(wdmp_inter$dest_grid))
+```
+
+```{r}
+flowLine <- od2line(flow = wdmp_inter, 
+                    zones = grid_sf,
+                    zone_code = "grid_id")
+```
+
+Using the quantile() function, we observe that between 75% to 100%, the data is obviously very skewed and in turn will affect visualisations later on.
+
+```{r}
+quantile(flowLine$TRIPS)
+```
+
+### Visualising the desire lines
+
+Given that the flow data will be very messy if we were to plot everything in a go, we will opt to plot different desire lines based on the quantiles we observed.
+
+When flow is \>= 5000
+
+```{r}
+tm_shape(mpsz) +
+  tm_polygons() +
+flowLine %>%  
+  filter(TRIPS >= 5000) %>%
+tm_shape() +
+  tm_lines(lwd = "TRIPS",
+           style = "quantile",
+           scale = c(0.1, 1, 3, 5, 7, 10),
+           n = 6,
+           alpha = 0.3)
+```
+
+When flow is \>= 50000
+
+```{r}
+tm_shape(mpsz) +
+  tm_polygons() +
+flowLine %>%  
+  filter(TRIPS >= 50000) %>%
+tm_shape() +
+  tm_lines(lwd = "TRIPS",
+           style = "quantile",
+           scale = c(0.1, 1, 3, 5, 7, 10),
+           n = 6,
+           alpha = 0.3)
+```
+
+When flow is \>= 90000
+
+```{r}
+tm_shape(mpsz) +
+  tm_polygons() +
+flowLine %>%  
+  filter(TRIPS >= 90000) %>%
+tm_shape() +
+  tm_lines(lwd = "TRIPS",
+           style = "quantile",
+           scale = c(0.1, 1, 3, 5, 7, 10),
+           n = 6,
+           alpha = 0.3)
+```
+
+To see the top 20 most taken trips, we shall use the following code chunk
+
+```{r}
+# Join wdmp_inter with busstop_grid to get the bus_stop_n for ori_grid
+wdmp_inter_with_stop_n <- wdmp_inter %>%
+  left_join(busstop_grid, by = c("ori_grid" = "grid_id"))
+
+# Join with bustop to get the loc_desc for the bus_stop_n
+wdmp_inter_with_loc_desc <- wdmp_inter_with_stop_n %>%
+  left_join(busstop, by = "BUS_STOP_N")
+
+# Now select the top 10 trips with loc_desc
+top_trips <- wdmp_inter_with_loc_desc %>%
+  arrange(desc(TRIPS)) %>%
+  slice_head(n = 20) 
+
+head(top_trips)
+
+```
+
+### Summary
+
+From the table, we can derive that the highest volume of trips are congregating around the causeway from Bus Stop number 46211 Bus Stop 46219. Both of which have identifical number of trips but however does not have a Bus Roof Number.
+
+The next
+
+
+## Understanding commuter patterns
+
+## Propulsive and Attractiveness Variables
+The factors listed above are computed at TAZ level for Spatial Interaction Modelling.
+
+## Effect of Distance on Number of Trips
+
+The analysis of distance on numbers of trips will require us to computer a distance matrix by using `grid_sf` and converting it from sf tibble data frame to an sp object
+
+```{r}
+grid_sp <- as(grid_sf, "Spatial")
+grid_sp
+```
+
+Calculating the euclidean distance between the centroids of the hexagons
+
+```{r}
+euc_dist <- spDists(grid_sp, 
+                longlat = FALSE)
+head(euc_dist, n=c(10, 10))
+```
+
+### Labelling column and row headers of distance matrix
+
+Create a list sorted according to the the distance matrix by hexagon grid id
+
+```{r}
+grid_id <- grid_sf$grid_id
+# Attach `grid_id` to row and column for distance matrix matching
+colnames(euc_dist) <- paste0(grid_id)
+rownames(euc_dist) <- paste0(grid_id)
+```
+
+### Finding each Origin to Destination distance
+
+```{r}
+dist_pair <- melt(euc_dist) %>%
+  rename(ori_grid = Var1,
+         dest_grid = Var2,
+         distance = value)
+head(dist_pair, 10)
+```
+
+### Find the mininum inter-zonal difference
+
+We will refuse any distance which is 0 as that is not helpful in helping find the miniumum distance
+
+```{r}
+dist_pair %>%
+  filter(distance > 0) %>%
+  summary()
+```
+#### Summary
+
+The smallest observed distance inter-zonal difference is 750m, which is exactly the distance between the centres of two adjacent hexagons. To resolve this, we can set the intra-zonal distance to 100 instead.
+
+```{r}
+dist_pair$distance <- ifelse(dist_pair$distance == 0,
+                        100, dist_pair$distance)
+summary(dist_pair)
+```
+
+Converting `ori_grid` and `desti_grid` columns to factors data types
+
+```{r}
+dist_pair$ori_grid <-
+as.factor(dist_pair$ori_grid)
+dist_pair$dest_grid <-
+as.factor(dist_pair$dest_grid)
+```
+
+
+## Finding how no. of trips relate to distance
+### Compute the Total Passenger Trips 
+
+```{r}
+flow_data <- wdmp %>%
+  group_by(ori_grid, dest_grid) %>% 
+  summarize(TRIPS = sum(TRIPS)) 
+```
+
+### Separating intra-flow (within hexagon) from passenger volume df
+
+```{r}
+flow_data$FlowNoIntra <- ifelse(
+  flow_data$ori_grid == flow_data$dest_grid, 
+  0, flow_data$TRIPS)
+flow_data$offset <- ifelse(
+  flow_data$ori_grid == flow_data$dest_grid,
+  0.000001, 1)
+```
+
+Converting `ori_grid` and `desti_grid` columns to factors data type
+
+```{r}
+flow_data$ori_grid <-
+as.factor(flow_data$ori_grid)
+flow_data$dest_grid <-
+as.factor(flow_data$dest_grid)
+```
+
+### Combining passenger volume data with inter-zonal distance value
+
+```{r}
+flow_data <- flow_data %>%
+  left_join (dist_pair,
+             by = c("ori_grid" = "ori_grid",
+                    "dest_grid" = "dest_grid"))
+```
+
+### Visualising Plot
+
+```{r}
+p1 <- flow_data %>%
+  st_drop_geometry() %>%
+  ggplot(
+    aes(
+      x = distance, 
+      y = TRIPS)) + 
+  geom_point(
+    size = 1,
+    alpha = .6,
+    color = "lightblue") +
+  geom_smooth(method = lm) +
+  ggtitle("Trips to distance")
+
+logp1 <- flow_data %>%
+  st_drop_geometry() %>%
+  ggplot(
+    aes(x = log(distance), 
+        y = log(TRIPS))) +
+  geom_point(
+    size = 1,
+    alpha = .6,
+    color = "lightgreen") +
+  geom_smooth(method = lm) +
+  ggtitle("Log of Trips to distance")
+#Using gridExtra Package to show both graphs)
+grid.arrange(p1, logp1, ncol = 2)
+
+```
+
+### Observation
+A strong inverse linear trend is observed for trips when the distance is further for the log transformed data. Wheareas in the initial data, a trend is not immediately obvious although there is a slight inverse trendline observable as well.
+
+## Propulsive Attributes
+
+This refers to a strong factor that encourage a “push” for people to get away from their current location. 
+Given the time period being analysed is Weekday Morning Peak, propulsive attributes are likely related to the following places of interest
+
+-   Train Station Exits - Part of commute between residence & work/school
+-   HDB - Residences/Homes
+
+### Importing of Train Station Exit Locations
+
+```{r}
+mrt_exit <- st_read(dsn = "data/geospatial",
+                   layer = "Train_Station_Exit_Layer") %>%
+  st_transform(crs = 3414)
+```
+
+### Number of Train Station Exits per Location
+
+```{r}
+grid_attr <- grid_sf %>%
+  mutate(mrt_exit_count = lengths(st_intersects(., mrt_exit)))
+summary(grid_attr$mrt_exit)
+```
+
+### Importing of residential HDBs
+
+```{r}
+hdb <- read_csv("data/aspatial/hdb.csv")
+hdb <- distinct(hdb)
+
+```
+Removing duplicates, select only residential properties and relevant columns
+```{r}
+hdb <- hdb %>%
+  filter(residential == "Y") %>%
+  select(
+    blk_no,
+    street,
+    postal,
+    total_dwelling_units,
+    lng,
+    lat
+  )
+```
+
+### Converting an aspatial data into a simple features tibble data.frame
+
+```{r}
+hdb_sf <- st_as_sf(hdb,
+                   coords = c("lng", "lat"),
+                   crs = 4326) %>%
+  st_transform(crs = 3414)
+```
+
+## Attractive Attributes
+
+Since the time period being analysed is Weekday Morning Peak, attractive attributes is likely to be:
+
+-   Businesses
+-   School
+-   Food & Beverages
+-   Retail Establishments
+
+### Importing of Business Locations
+
+```{r}
+biz <- st_read(dsn = "data/geospatial",
+                   layer = "Business") %>%
+  st_transform(crs = 3414)
+grid_attr$biz <- grid_sf %>%
+  mutate(biz_no = lengths(st_intersects(., biz)))
+
+summary(grid_attr$biz)
+```
+### Importing of FNB locations
+
+```{r}
+fnb <- st_read(dsn = "data/geospatial",
+                   layer = "F&B") %>%
+  st_transform(crs = 3414)
+grid_attr$fnb <- grid_sf %>%
+  mutate(fnb = lengths(st_intersects(., fnb)))
+
+summary(grid_attr$fnb)
+```
+### Importing of Retail locations
+
+```{r}
+retail <- st_read(dsn = "data/geospatial",
+                   layer = "Retails") %>%
+  st_transform(crs = 3414)
+grid_attr$retail <- grid_sf %>%
+  mutate(retail = lengths(st_intersects(., retail)))
+
+summary(grid_attr$retail)
+```
+
+### Importing of Financial Services Locations
+
+```{r}
+fs <- st_read(dsn = "Data/geospatial",
+                   layer = "FinServ") %>%
+  st_transform(crs = 3414)
+grid_attr$fs <- lengths(st_intersects(grid_sf, fs))
+
+summary(grid_attr$fs)
+```
+
+### Importing of School Locations
+
+```{r}
+sch <- read_csv("data/aspatial/schools.csv")
+sch <- unique(sch)
+
+sch <- sch %>%
+  select(
+    results.LATITUDE,
+    results.LONGITUDE,
+    postal_code, 
+    school_name
+  )
+```
+
+Rename columns for ease of reference
+
+```{r}
+sch <- sch %>%
+  rename(
+    latitude = results.LATITUDE,
+    longitude = results.LONGITUDE
+  )
+```
+
+### Converting an aspatial data into a simple features tibble data.frame
+
+```{r}
+sch_sf <- st_as_sf(sch,
+                   coords = c("longitude", "latitude"),
+                   crs = 4326) %>%
+  st_transform(crs = 3414)
+```
+
+### Number of Schools per Location
+
+```{r}
+grid_attr$sch <- lengths(st_intersects(grid_sf, sch_sf))
+
+summary(grid_attr$sch)
+```
+
+#Spatial Interaction Modelling
+
+Calibrate spatial interactive models to determine factors affecting urban commuting flows at the selected time interval.
+
+Present the modelling results by using appropriate geovisualisation and graphical visualisation methods. (Not more than 5 visuals)
+
+With reference to the Spatial Interaction Model output tables, maps and data visualisation prepared, describe the modelling results. (not more than 100 words per visual).
