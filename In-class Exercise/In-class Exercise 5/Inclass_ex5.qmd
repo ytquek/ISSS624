@@ -20,7 +20,7 @@ Next, we will load spflow and other R packages into R environment
 ```{r}
 pacman::p_load(tmap, sf, sp, DT, stplanr,
                performance,
-               ggpubr, tidyverse, httr, Matrix, spflow)
+               ggpubr, tidyverse, httr, Matrix, spflow, spdep)
 ```
 
 ## Data Preparation
@@ -29,16 +29,173 @@ pacman::p_load(tmap, sf, sp, DT, stplanr,
 2.) A tibble data.frame cosnisiting of origins, destination, flows and distances between origins and destination
 3.) Tiblee data.frame consisiting of the explanatory variables
 
-```{r}
-centroids <- suppressWarnings({
-  st_point_onsurace(st_geometry(mpsz_bustop))}
-  )
+### Retrieving data
 
-mpsz_nb <- list(
-  "by_contiguity" = poly2nb(mpsz_busstop),
-  "by_distance" = dnearneigh(centroids, 
-                             d1 = 0, d2 = 5000),
-  "by_knn" = knn2nb(knearneigh(centroids, 3))
+```{r}
+mpsz_nb <- read_rds("data/rds/mpsz_nb.rds")
+mpsz_flow <- read_rds("data/rds/mpsz_flow.rds")
+mpsz_var <- read_rds("data/rds/mpsz_var.rds")
+```
+
+### Creating spflow network class objects
+
+```{r}
+mpsz_net <- spflow_network(
+  id_net ="sg",
+  node_neighborhood = 
+    nb2mat(mpsz_nb$by_contiguity),
+  node_data = mpsz_var,
+  node_key_column ="SZ_CODE")
+mpsz_net
+```
+
+
+```{r}
+mpsz_net_pairs <- spflow_network_pair(
+  id_orig_net = "sg",
+  id_dest_net ="sg",
+  pair_data = mpsz_flow,
+  orig_key_column = "ORIGIN_SZ",
+  dest_key_column = "DESTIN_SZ"
 )
 
+mpsz_net_pairs
+
+```
+
+```{r}
+mpsz_multi_net <- spflow_network_multi(mpsz_net, mpsz_net_pairs)
+mpsz_multi_net
+```
+## Correlation Analysis
+Multicollinearity checks for a situation which 2 more explanatory variavles are highly related in a regression model
+```{r}
+cor_formula <- log(1 + TRIPS) ~
+  BUSSTOP_COUNT +
+  AGE7_12 +
+  AGE13_24 +
+  AGE25_64 +
+  SCHOOL_COUNT +
+  BUSINESS_COUNT +
+  RETAILS_COUNT +
+  FINSERV_COUNT +
+  P_(log(DISTANCE + 1))
+  # Impedence from one point to another point
+```
+
+### Model calibration
+
+```{r}
+base_model <- spflow(
+  spflow_formula = log(1 + TRIPS) ~
+    O_(BUSSTOP_COUNT +
+         AGE25_64) +
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT + 
+         FINSERV_COUNT) +
+    P_(log(DISTANCE + 1)),
+  spflow_networks = mpsz_multi_net)
+  
+base_model
+
+```
+## Residual Diagnostic Tests
+```{r}
+old_par <- par(mfrow = c(1,3),
+mar = c(2,2,2,2))
+spflow_moran_plots(base_model)
+```
+```{r}
+corr_residual <- pair_cor(base_model)
+colnames(corr_residual) <- substr(colnames(corr_residual),1,3)
+cor_image(corr_residual)
+```
+### Working with model control
+```{r}
+spflow_formula <- log(1 + TRIPS) ~
+    O_(BUSSTOP_COUNT +
+         AGE25_64) +
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT + 
+         FINSERV_COUNT) +
+    P_(log(DISTANCE + 1))
+
+model_control <- spflow_control(
+  estimation_method ="mle",
+  model = "model_1")
+
+mle_model1 <- spflow(
+  spflow_formula,
+  spflow_network = mpsz_multi_net,
+  estimation_control = model_control)
+
+mle_model1
+```
+
+```{r}
+spflow_formula <- log(1 + TRIPS) ~
+    O_(BUSSTOP_COUNT +
+         AGE25_64) +
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT + 
+         FINSERV_COUNT) +
+    P_(log(DISTANCE + 1))
+
+model_control <- spflow_control(
+  estimation_method ="mle",
+  model = "model_2")
+
+mle_model2 <- spflow(
+  spflow_formula,
+  spflow_network = mpsz_multi_net,
+  estimation_control = model_control)
+
+mle_model2
+```
+
+```{r}
+spflow_formula <- log(1 + TRIPS) ~
+    O_(BUSSTOP_COUNT +
+         AGE25_64) +
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT + 
+         FINSERV_COUNT) +
+    P_(log(DISTANCE + 1))
+
+model_control <- spflow_control(
+  estimation_method ="mle",
+  model = "model_8")
+
+mle_model8 <- spflow(
+  spflow_formula,
+  spflow_network = mpsz_multi_net,
+  estimation_control = model_control)
+
+mle_model8
+```
+
+```{r}
+spflow_formula <- log(1 + TRIPS) ~
+    O_(BUSSTOP_COUNT +
+         AGE25_64) +
+    D_(SCHOOL_COUNT +
+         BUSINESS_COUNT +
+         RETAILS_COUNT + 
+         FINSERV_COUNT) +
+    P_(log(DISTANCE + 1))
+
+model_control <- spflow_control(
+  estimation_method ="mle",
+  model = "model_8")
+
+mle_model9 <- spflow(
+  spflow_formula,
+  spflow_network = mpsz_multi_net,
+  estimation_control = model_control)
+
+mle_model9
 ```
