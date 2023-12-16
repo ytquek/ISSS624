@@ -29,3 +29,16 @@ pacman::p_load(tmap, sf, sp, DT, stplanr,
 2.) A tibble data.frame cosnisiting of origins, destination, flows and distances between origins and destination
 3.) Tiblee data.frame consisiting of the explanatory variables
 
+```{r}
+centroids <- suppressWarnings({
+  st_point_onsurace(st_geometry(mpsz_bustop))}
+  )
+
+mpsz_nb <- list(
+  "by_contiguity" = poly2nb(mpsz_busstop),
+  "by_distance" = dnearneigh(centroids, 
+                             d1 = 0, d2 = 5000),
+  "by_knn" = knn2nb(knearneigh(centroids, 3))
+)
+
+```
