@@ -1,0 +1,31 @@
+---
+title: "Hands-on_ex5"
+date: "16 December 2023"
+date-modified: "last-modified"
+format: html
+execute:
+  echo: true
+  warning: false
+editor: visual
+---
+
+#Loading R packages
+
+```{r}
+devtools::install_github("LukeCe/spflow")
+```
+
+Next, we will load spflow and other R packages into R environment
+
+```{r}
+pacman::p_load(tmap, sf, sp, DT, stplanr,
+               performance,
+               ggpubr, tidyverse, httr, Matrix, spflow)
+```
+
+## Data Preparation
+3 data sets are required to calaibrate a SPatial Econometric Interaction Model:
+1.) A Spatial Weight
+2.) A tibble data.frame cosnisiting of origins, destination, flows and distances between origins and destination
+3.) Tiblee data.frame consisiting of the explanatory variables
+

@@ -1,0 +1,340 @@
+---
+title: "Take Home Exercise 2"
+date: "6 December 2023"
+date-modified: "last-modified"
+format: html
+execute:
+  echo: true
+  eval: true
+  warning: false
+editor: visual
+---
+
+# Take Home Exercise 2
+
+## Getting Started
+
+-   sf - importing, integrating, processing and transforming geospatial data.
+
+-   tidyverse - importing, integrating, wrangling and visualising data.
+
+-   tmap - creating thematic maps.
+
+```{r}
+pacman::p_load(tmap, sf, sp, DT, stplanr,
+               performance, reshape2,
+               ggpubr, tidyverse)
+```
+
+## Preparing the Flow Data
+
+### Importing the OD data
+
+Import the `Passenger Volume by Origin Destination Bus Stops` data set downloaded from LTA DataMall
+
+```{r}
+odbus <- read_csv("data/aspatial/origin_destination_bus_202308.csv")
+```
+
+Check `odbus` tibble data frame
+
+```{r}
+glimpse(odbus)
+```
+
+Note: Values in `ORIGIN_PT_CODE` and `DESTINATION_PT_CODE` are character data type
+
+Converting `ORIGIN_PT_CODE` and `DESTINATION_PT_CODE` columns from character data type to factors in R (categorical data type)
+
+```{r}
+odbus$ORIGIN_PT_CODE <-
+as.factor(odbus$ORIGIN_PT_CODE)
+odbus$DESTINATION_PT_CODE <-
+as.factor(odbus$DESTINATION_PT_CODE)
+```
+
+### Extracting the Study Data
+
+Filter out data that belong to trips that occur during "Weekday" and "6-9am" (wdmp)
+
+```{{r}}
+wdmp <- odbus %>%
+  filter(DAY_TYPE == "WEEKDAY") %>%
+  filter(TIME_PER_HOUR >= 6 & TIME_PER_HOUR <= 9) %>%
+  group_by(ORIGIN_PT_CODE, DESTINATION_PT_CODE) %>%
+  summarise(TRIPS = sum(TOTAL_TRIPS))
+```
+
+Check resulting data table
+
+```{r}
+head(wdmp)
+```
+
+Output saved in rds format for future use
+
+```{r}
+write_rds(wdmp, "data/rds/wdmp.rds") 
+```
+
+Import the rds file into R environment
+
+```{r}
+wdmp <- read_rds("data/rds/wdmp.rds") 
+```
+
+## Geospatial Data
+
+Two geospatial data will be used for this exercise:
+
+-   BusStop: Provides location of bus stop as at Q4 2022
+
+-   MPSZ-2019: Provides the sub-zone boundary of URA Master Plan 2019
+
+### Importing Bus Stop Locations
+
+```{r}
+busstop <- st_read(dsn = "Data/geospatial",
+                   layer = "BusStop") %>%
+  st_transform(crs = 3414)
+```
+
+### Importing Singapore Map
+
+```{r}
+mpsz <- read_rds("data/rds/mpsz.rds")
+mpsz
+```
+
+Check structure of `busstop` and `MPSZ` sf tibble data frame
+
+```{r}
+glimpse(busstop)
+```
+
+```{r}
+glimpse(mpsz)
+```
+
+## Hexagon Grid Setup
+
+An analytical hexagon data of 375m (this distance is the perpendicular distance between the centre of the hexagon and its edges) is used to represent the traffic analysis zone (TAZ).
+
+### Drawing the Hexagon Grid
+
+Draw hexagon grid over the `mpsz` map
+
+```{r}
+hexagon_grid = st_make_grid(mpsz, c(750, 750), what = "polygons", square = FALSE)
+```
+
+Convert the hexagon grid to sf (simple features) object and add a new column **grid_id** (sequential identifier) to it
+
+```{r}
+grid_sf = st_sf(hexagon_grid) %>%
+  mutate(grid_id = 1:length(lengths(hexagon_grid)))
+```
+
+Assign bus stops to hexagon **grid_id**
+
+```{r}
+busstop_grid <- st_intersection(grid_sf,busstop) %>%
+  select(BUS_STOP_N, grid_id) %>%
+  st_drop_geometry()
+```
+
+Save output into rds format
+
+```{r}
+write_rds(busstop_grid, "data/rds/busstop_grid.rds")
+```
+
+Check for duplicate records
+
+```{r}
+duplicate <- busstop_grid %>%
+  group_by_all() %>%
+  filter(n()>1) %>%
+  ungroup()
+```
+
+Retain unique records only
+
+```{r}
+busstop_grid <- unique(busstop_grid)
+```
+
+### Replace Bus Stop Code with Corresponding Hexagon Grid ID
+
+`wdmp` left join with `busstop_grid` for **ORIGIN_PT_CODE**
+
+```{r}
+wdmp <- wdmp %>%
+  left_join(busstop_grid, by = c("ORIGIN_PT_CODE" = "BUS_STOP_N"))
+```
+
+Rename column to **ori_grid**
+
+```{r}
+wdmp <- wdmp %>%
+  rename(ori_grid = grid_id)
+
+```
+
+`wdmp` left join with `busstop_grid` for **DESTINATION_PT_CODE**
+
+```{r}
+wdmp <- wdmp %>%
+  left_join(busstop_grid, by = c("DESTINATION_PT_CODE" = "BUS_STOP_N"))
+```
+
+Rename column to **desti_grid**
+
+```{r}
+wdmp <- wdmp %>%
+  rename(desti_grid = grid_id)
+```
+
+Remove bus stop codes
+
+```{r}
+wdmp <- wdmp %>%
+  ungroup() %>%
+  select(-c(ORIGIN_PT_CODE, DESTINATION_PT_CODE))
+
+```
+
+Remove any NA values
+
+```{r}
+wdmp <- na.omit(wdmp)
+```
+
+Reorder columns to Origin, Destination, Number of Trips
+
+```{r}
+wdmp <- wdmp %>%
+  select(ori_grid, desti_grid, TRIPS)
+```
+
+## Visualising Spatial Interaction
+
+### Removing intra-zonal flows
+
+```{r}
+wdmp1 <- wdmp[wdmp$ori_grid != wdmp$desti_grid, ]
+```
+
+### Creating desire lines
+
+```{r}
+flowLine <- od2line(flow = wdmp1, 
+                    zones = grid_sf,
+                    zone_code = "grid_id")
+```
+
+### Visualising the desire lines
+
+Flow data is very messy and highly skewed, thus focus is placed on selected flows e.g. flow \>= 5000
+
+```{r}
+tm_shape(mpsz) +
+  tm_polygons() +
+flowLine %>%  
+  filter(TRIPS >= 5000) %>%
+tm_shape() +
+  tm_lines(lwd = "TRIPS",
+           style = "quantile",
+           scale = c(0.1, 1, 3, 5, 7, 10),
+           n = 6,
+           alpha = 0.3)
+```
+
+::: {.callout-tip title="Statistical Conclusion" style="color: gray"}
+Weekday Morning Peak 6am-9am
+
+During the weekday morning peak period in Singapore, significant flows are concentrated between residential areas such as Bukit Batok and work areas like Tuas, as well as from Woodlands Checkpoint to industrial parks in locations like Loyang. This concentration suggests a predominant pattern of people commuting from their homes in residential estates or across the border from Malaysia to their workplaces in office and industrial areas. The observed flow dynamics highlight key commuting routes, likely reflecting the spatial distribution of residences and employment centers in the region.
+:::
+
+## Propulsive and Attractiveness Variables
+
+Assemble at least three propulsive and three attractiveness variables by using aspatial and geospatial from publicly available sources.
+
+### Importing & tidying School data
+
+```{r}
+school <- read_csv("Data/Aspatial/Generalinformationofschools.csv")
+
+```
+
+### Importing & tidying Business data
+
+```{r}
+business <- st_read(dsn = "Data/geospatial",
+                   layer = "Business") %>%
+  st_transform(crs = 3414)
+```
+
+### Importing & tidying Train Station Exit Layer data
+
+```{r}
+mrtexit <- st_read(dsn = "Data/geospatial",
+                   layer = "Train_Station_Exit_Layer") %>%
+  st_transform(crs = 3414)
+```
+
+## Distance matrix
+
+### Converting from sf data.table to SpatialPolygonsDataFrame
+
+`grid_sf` is converted from sf tibble data frame to SpatialPolygonsDataFrame of sp object
+
+```{r}
+grid_sp <- as(grid_sf, "Spatial")
+grid_sp
+```
+
+### Computing the distance matrix
+
+Euclidean distance between the centroids of the hexagons
+
+```{r}
+euc_dist <- spDists(grid_sp, 
+                longlat = FALSE)
+head(euc_dist, n=c(10, 10))
+```
+
+Note: Output distance is a matrix object class of R. Column headers and row headers are also not labeled with the hexagon grid id.
+
+### Labelling column and row headers of distance matrix
+
+Create a list sorted according to the the distance matrix by hexagon grid id
+
+```{r}
+grid_id <- grid_sf$grid_id
+```
+
+Attach `grid_id` to row and column for distance matrix matching
+
+```{r}
+colnames(euc_dist) <- paste0(grid_id)
+rownames(euc_dist) <- paste0(grid_id)
+```
+
+### Pivoting distance value by `grid_id`
+
+Pivot the distance matrix into a long table by using the row and column hexagons
+
+```{r}
+dist_pair <- melt(euc_dist) %>%
+  rename(euc_dist = value)
+head(dist_pair, 10)
+```
+
+#Spatial Interaction Modelling
+
+Calibrate spatial interactive models to determine factors affecting urban commuting flows at the selected time interval.
+
+Present the modelling results by using appropriate geovisualisation and graphical visualisation methods. (Not more than 5 visuals)
+
+With reference to the Spatial Interaction Model output tables, maps and data visualisation prepared, describe the modelling results. (not more than 100 words per visual).

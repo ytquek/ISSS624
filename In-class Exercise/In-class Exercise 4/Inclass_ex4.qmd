@@ -166,7 +166,6 @@ inter_zonal_flow <- flow_data %>%
          DIST = dist)
 ```
 
-
 # Model Calibration
 
 ```{r}
@@ -174,7 +173,6 @@ pacman::p_load(sp, DT, stplanr,
                performance, reshape2,
                ggpubr, units)
 ```
-
 
 ## Unconstrained SIM
 
@@ -358,4 +356,3 @@ ggarrange(unc_p, orc_p, dec_p, dbc_p,
           ncol = 2,
           nrow = 2)
 ```
-
