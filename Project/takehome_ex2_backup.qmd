@@ -185,12 +185,6 @@ busstop_grid <- st_intersection(grid_sf,cleaned_busstop) %>%
   st_drop_geometry()
 ```
 
-#### Saving the new busstopgrid dataframe into RDS
-
-```{r}
-write_rds(busstop_grid, "data/rds/busstop_grid.rds")
-```
-
 ### Step 2. Preparing origin to destination data
 
 #### Preparing origin trip id
@@ -399,7 +393,7 @@ dist_pair %>%
   filter(distance > 0) %>%
   summary()
 ```
-#### Summary
+### Summary
 
 The smallest observed distance inter-zonal difference is 750m, which is exactly the distance between the centres of two adjacent hexagons. To resolve this, we can set the intra-zonal distance to 100 instead.
 
@@ -526,7 +520,6 @@ hdb <- distinct(hdb)
 Removing duplicates, select only residential properties and relevant columns
 ```{r}
 hdb <- hdb %>%
-  filter(residential == "Y") %>%
   select(
     blk_no,
     street,
@@ -537,14 +530,15 @@ hdb <- hdb %>%
   )
 ```
 
-### Converting an aspatial data into a simple features tibble data.frame
-
 ```{r}
 hdb_sf <- st_as_sf(hdb,
                    coords = c("lng", "lat"),
                    crs = 4326) %>%
   st_transform(crs = 3414)
+
+grid_attr$hdb <- lengths(st_intersects(grid_sf, hdb_sf))
 ```
+
 
 ## Attractive Attributes
 
@@ -638,14 +632,113 @@ sch_sf <- st_as_sf(sch,
 
 ```{r}
 grid_attr$sch <- lengths(st_intersects(grid_sf, sch_sf))
-
 summary(grid_attr$sch)
 ```
 
+### Final data set
+
+```{r}
+summary(grid_attr)
+```
 #Spatial Interaction Modelling
 
-Calibrate spatial interactive models to determine factors affecting urban commuting flows at the selected time interval.
+Spatial Interaction Modeling will be used to predict the flow of people & information between locations in the hexagonal grid. The models are based on the premise of the amount of interaction between two locations decreases as the distance between them increases, following a function known as a distance decay function
 
-Present the modelling results by using appropriate geovisualisation and graphical visualisation methods. (Not more than 5 visuals)
+## Finding Propulsive Attributes flow by their respective attributes
+### Flow by origin
+```{r}
+# Origin
+attr_all <- grid_attr %>%
+  st_drop_geometry() %>%
+  mutate(
+    grid_id = as.factor(grid_id)
+  )
+```
 
-With reference to the Spatial Interaction Model output tables, maps and data visualisation prepared, describe the modelling results. (not more than 100 words per visual).
+
+```{r}
+attr_flow <- dist_pair %>%
+  mutate(
+    ori_grid = as.factor(ori_grid),
+     dest_grid= as.factor(dest_grid)
+  ) %>%
+  left_join(
+    attr_all,
+  by = c("ori_grid" = "grid_id")) %>%
+  rename(
+    ori_mrt_exit = mrt_exit_count,
+    ori_fnb = fnb,
+    ori_hdb = hdb
+  ) %>%
+  select(
+    -c(fs,biz,sch))
+
+```
+
+```{r}
+wdmp <- wdmp %>%
+  mutate(ori_grid = as.factor(ori_grid),
+         dest_grid = as.factor(dest_grid))
+
+attr_flow <- left_join(attr_flow, wdmp, by = c("ori_grid", "dest_grid"))
+
+```
+
+### Flow by Destination
+
+Retain only attractive attributes
+
+```{r}
+attr_flow <- attr_flow %>% 
+  left_join(
+  attr_all,
+  by = c("dest_grid" = "grid_id")) %>%
+  rename(
+    dest_fs = fs,
+    dest_biz = biz,
+    dest_sch = sch
+  ) %>%
+  select(
+    -c(mrt_exit_count,ori_fnb,ori_hdb)
+  )
+
+summary(attr_flow)
+```
+
+### Replacing 0 values
+
+```{r}
+# save columns as a vector
+update_cols <- c( "dest_fs", "hdb", "dest_sch", "ori_mrt_exit")
+
+# update all 0 values across columns
+attr_flow <- attr_flow %>%
+  mutate(across(all_of(update_cols), ~ ifelse(. == 0, 0.9, .)))
+
+summary(attr_flow)
+
+```
+
+### Visualising correlation between propulsive factors and trips
+```{r}
+p_res <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(hdb),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "#8D9EC6",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Trips ~ Residential Density")
+
+p_res
+
+```
+
+### Visualising correlation between propulsive factors and trips
+
