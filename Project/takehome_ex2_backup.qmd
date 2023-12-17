@@ -340,10 +340,10 @@ From the table, we can derive that the highest volume of trips are congregating 
 
 The next
 
-
 ## Understanding commuter patterns
 
 ## Propulsive and Attractiveness Variables
+
 The factors listed above are computed at TAZ level for Spatial Interaction Modelling.
 
 ## Effect of Distance on Number of Trips
@@ -393,6 +393,7 @@ dist_pair %>%
   filter(euc_dist > 0) %>%
   summary()
 ```
+
 ### Summary
 
 The smallest observed distance inter-zonal difference is 750m, which is exactly the distance between the centres of two adjacent hexagons. To resolve this, we can set the intra-zonal distance to 100 instead.
@@ -412,9 +413,9 @@ dist_pair$dest_grid <-
 as.factor(dist_pair$dest_grid)
 ```
 
-
 ## Finding how no. of trips relate to distance
-### Compute the Total Passenger Trips 
+
+### Compute the Total Passenger Trips
 
 ```{r}
 flow_data <- wdmp %>%
@@ -484,12 +485,12 @@ grid.arrange(p1, logp1, ncol = 2)
 ```
 
 ### Observation
+
 A strong inverse linear trend is observed for trips when the distance is further for the log transformed data. Wheareas in the initial data, a trend is not immediately obvious although there is a slight inverse trendline observable as well.
 
 ## Propulsive Attributes
 
-This refers to a strong factor that encourage a “push” for people to get away from their current location. 
-Given the time period being analysed is Weekday Morning Peak, propulsive attributes are likely related to the following places of interest
+This refers to a strong factor that encourage a "push" for people to get away from their current location. Given the time period being analysed is Weekday Morning Peak, propulsive attributes are likely related to the following places of interest
 
 -   Train Station Exits - Part of commute between residence & work/school
 -   HDB - Residences/Homes
@@ -517,7 +518,9 @@ hdb <- read_csv("data/aspatial/hdb.csv")
 hdb <- distinct(hdb)
 
 ```
+
 Removing duplicates, select only residential properties and relevant columns
+
 ```{r}
 hdb <- hdb %>%
   select(
@@ -539,7 +542,6 @@ hdb_sf <- st_as_sf(hdb,
 grid_attr$hdb <- lengths(st_intersects(grid_sf, hdb_sf))
 ```
 
-
 ## Attractive Attributes
 
 Since the time period being analysed is Weekday Morning Peak, attractive attributes is likely to be:
@@ -548,7 +550,6 @@ Since the time period being analysed is Weekday Morning Peak, attractive attribu
 -   School
 -   Food & Beverages
 -   Retail Establishments
-
 
 ### Importing of Business Locations
 
@@ -640,6 +641,7 @@ summary(grid_attr$sch)
 
 message(paste("There are", sum(grid_attr$sch), " Schools that occur in hexagons with bus stops", "with a maximum of", max(grid_attr$sch), "within grid_id", grid_attr$grid_id[which.max(grid_attr$sch)]))
 ```
+
 ### Importing of F&B
 
 ```{r}
@@ -647,6 +649,7 @@ fnb <- st_read(dsn = "Data/geospatial",
                    layer = "F&B") %>%
   st_transform(crs = 3414)
 ```
+
 ```{r}
 grid_attr$fnb <- lengths(st_intersects(grid_sf, fnb))
 
@@ -747,8 +750,6 @@ summary(attr_flow)
 
 ### Replacing 0 values
 
-
-
 ```{r}
 
 update_cols <- c( "ori_hdb","ori_sch" ,"dest_fs", "dest_biz","dest_fnb")
@@ -836,7 +837,6 @@ p_fnb <- attr_flow %>%
 p_fnb
 ```
 
-
 #### Financial Services
 
 ```{r}
@@ -857,7 +857,6 @@ p_fs <- attr_flow %>%
 
 p_fs
 ```
-
 
 #### Businesses
 
@@ -880,9 +879,10 @@ p_biz <- attr_flow %>%
 p_biz
 ```
 
-
 ## Regression Modelling
+
 ### Multicollinearity checks
+
 To avoid using two or more predictor variables in the model that are highly correlated with each other, we will do a multicollinearity check.
 
 ```{r}
@@ -893,6 +893,7 @@ melted_corr_matrix <- melt(cor_matrix)
 head(melted_corr_matrix)
 
 ```
+
 ```{r}
 # plotting the correlation heatmap
 ggplot(data = melted_corr_matrix, aes(x=Var1, y=Var2, 
@@ -905,25 +906,104 @@ geom_text(aes(Var2, Var1, label = value),
 ```
 
 ### Constrained SIM - Origin
+
 ```{r}
 sum(attr_flow$euc_dist <= 0, na.rm = TRUE)
 
 ```
 
+#### Code chunk for Constrained SIM
 
-###Code chunk for original SIM
-oriSIM <- glm(
-    formula = TRIPS 
-    ~ ori_grid + 
-      log(dest_fs) + 
-      log(dest_fnb) + 
-      log(euc_dist) - 1,
-    family = poisson(link = "log"),
-    data = attr_flow,
-           na.action = na.exclude)
+```{r}
+#Adding 1 to euc_dist and handling NAs
+attr_flow$euc_dist.x <- ifelse(is.na(attr_flow$euc_dist.x), NA, log(attr_flow$euc_dist.x + 1))
+attr_flow <- na.omit(attr_flow)
 
-summary(oriSIM)
+# Fitting the model
+originalSIM <- glm(
+  formula = TRIPS ~ ori_grid 
+             + log(dest_fnb)
+             + log(dest_biz)
+             + euc_dist.x,  # Already transformed
+  family = poisson(link = "log"),
+  data = attr_flow
+)
 
-Results
+# Checking the summary
+summary(originalSIM)
 
-Unfortunately, i wasn't able to resolve the issue of the above code chunk to get the SIM data in time. 
+```
+
+### Unconstrained SIM
+
+```{r}
+UncSIM <- glm(formula = TRIPS ~ 
+               + log(dest_fnb)
+             + log(dest_biz),
+                log(euc_dist.x),
+              family = poisson(link = "log"),
+              data = attr_flow,
+              na.action = na.exclude)
+
+# Checking the summary
+summary(UncSIM)
+
+```
+
+### Destination constrained SIM
+
+```{r}
+destSIM <- glm(formula = TRIPS ~ 
+               + log(dest_fnb),
+             + log(dest_biz)+
+                log(euc_dist.x) -1,
+              family = poisson(link = "log"),
+              data = attr_flow,
+              na.action = na.exclude)
+
+# Checking the summary
+summary(destSIM)
+
+```
+
+### Doubly constrained SIM
+
+```{r}
+doubleSIM <- glm(formula = TRIPS ~ 
+                ori_grid + 
+                dest_grid + 
+                log(euc_dist.x),
+              family = poisson(link = "log"),
+              data = attr_flow,
+              na.action = na.exclude)
+summary(doubleSIM)
+```
+
+## Results & Model comparison
+
+```{r}
+model_list <- list(
+  originConstrained= originalSIM,
+  unconstrained= UncSIM,
+  destinationConstrained= destSIM,
+  doublyConstrained= doubleSIM)
+```
+
+```{r}
+compare_performance(model_list,
+                    metrics = "RMSE")
+```
+
+## Summary
+
+From the performance matrice, we can see that :
+
+-   originConstrained: The RMSE is 1841.234, which suggests the average error magnitude between the predicted and actual values is around this figure.
+
+-   unconstrained: The RMSE is 1875.648, slightly higher than the origin-constrained model, indicating slightly less accurate predictions on average.
+
+-   destinationConstrained: The RMSE is 1875.636, very similar to the unconstrained model.
+
+-   doublyConstrained: The RMSE is 1804.007, which is the lowest among the four, suggesting that applying constraints to both origin and destination may result in more accurate predictions in this case.
+
+In summary, based on RMSE, the doublyConstrained model performs the best, followed by the originConstrained model. The unconstrained and destinationConstrained models have a similar performance, which is slightly worse than the other two. Lower RMSE values indicate better model performance in terms of prediction accuracy.
