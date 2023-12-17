@@ -380,7 +380,7 @@ rownames(euc_dist) <- paste0(grid_id)
 dist_pair <- melt(euc_dist) %>%
   rename(ori_grid = Var1,
          dest_grid = Var2,
-         distance = value)
+         euc_dist = value)
 head(dist_pair, 10)
 ```
 
@@ -390,7 +390,7 @@ We will refuse any distance which is 0 as that is not helpful in helping find th
 
 ```{r}
 dist_pair %>%
-  filter(distance > 0) %>%
+  filter(euc_dist > 0) %>%
   summary()
 ```
 ### Summary
@@ -398,8 +398,8 @@ dist_pair %>%
 The smallest observed distance inter-zonal difference is 750m, which is exactly the distance between the centres of two adjacent hexagons. To resolve this, we can set the intra-zonal distance to 100 instead.
 
 ```{r}
-dist_pair$distance <- ifelse(dist_pair$distance == 0,
-                        100, dist_pair$distance)
+dist_pair$euc_dist <- ifelse(dist_pair$euc_dist == 0,
+                        100, dist_pair$euc_dist)
 summary(dist_pair)
 ```
 
@@ -458,7 +458,7 @@ p1 <- flow_data %>%
   st_drop_geometry() %>%
   ggplot(
     aes(
-      x = distance, 
+      x = euc_dist, 
       y = TRIPS)) + 
   geom_point(
     size = 1,
@@ -470,7 +470,7 @@ p1 <- flow_data %>%
 logp1 <- flow_data %>%
   st_drop_geometry() %>%
   ggplot(
-    aes(x = log(distance), 
+    aes(x = log(euc_dist), 
         y = log(TRIPS))) +
   geom_point(
     size = 1,
@@ -549,39 +549,27 @@ Since the time period being analysed is Weekday Morning Peak, attractive attribu
 -   Food & Beverages
 -   Retail Establishments
 
+
 ### Importing of Business Locations
 
 ```{r}
-biz <- st_read(dsn = "data/geospatial",
+biz <- st_read(dsn = "Data/geospatial",
                    layer = "Business") %>%
   st_transform(crs = 3414)
-grid_attr$biz <- grid_sf %>%
-  mutate(biz_no = lengths(st_intersects(., biz)))
+```
+
+### Number of Businesses per Location
+
+```{r}
+
+grid_attr$biz <- lengths(st_intersects(grid_sf, biz))
 
 summary(grid_attr$biz)
+
+message(paste("There are", sum(grid_attr$biz), " Businesses that occur in hexagons with bus stops", "with a maximum of", max(grid_attr$biz), "within grid_id", grid_attr$grid_id[which.max(grid_attr$biz)]))
 ```
-### Importing of FNB locations
 
-```{r}
-fnb <- st_read(dsn = "data/geospatial",
-                   layer = "F&B") %>%
-  st_transform(crs = 3414)
-grid_attr$fnb <- grid_sf %>%
-  mutate(fnb = lengths(st_intersects(., fnb)))
-
-summary(grid_attr$fnb)
-```
-### Importing of Retail locations
-
-```{r}
-retail <- st_read(dsn = "data/geospatial",
-                   layer = "Retails") %>%
-  st_transform(crs = 3414)
-grid_attr$retail <- grid_sf %>%
-  mutate(retail = lengths(st_intersects(., retail)))
-
-summary(grid_attr$retail)
-```
+The location with the most number of businesses is grid id 3942, with 126 businesses located within.
 
 ### Importing of Financial Services Locations
 
@@ -589,15 +577,29 @@ summary(grid_attr$retail)
 fs <- st_read(dsn = "Data/geospatial",
                    layer = "FinServ") %>%
   st_transform(crs = 3414)
+```
+
+### Number of Financial Services per Location
+
+```{r}
 grid_attr$fs <- lengths(st_intersects(grid_sf, fs))
 
 summary(grid_attr$fs)
+
+message(paste("There are", sum(grid_attr$fs), " Financial Services that occur in hexagons with bus stops", "with a maximum of", max(grid_attr$fs), "within grid_id", grid_attr$grid_id[which.max(grid_attr$fs)]))
 ```
+
+Note: The hexagaon with grid_id 2009 also boasts the highest count of train station exits!
 
 ### Importing of School Locations
 
 ```{r}
 sch <- read_csv("data/aspatial/schools.csv")
+```
+
+Remove duplicates, select only relevant columns
+
+```{r}
 sch <- unique(sch)
 
 sch <- sch %>%
@@ -607,6 +609,7 @@ sch <- sch %>%
     postal_code, 
     school_name
   )
+
 ```
 
 Rename columns for ease of reference
@@ -632,56 +635,65 @@ sch_sf <- st_as_sf(sch,
 
 ```{r}
 grid_attr$sch <- lengths(st_intersects(grid_sf, sch_sf))
+
 summary(grid_attr$sch)
-```
 
-### Final data set
+message(paste("There are", sum(grid_attr$sch), " Schools that occur in hexagons with bus stops", "with a maximum of", max(grid_attr$sch), "within grid_id", grid_attr$grid_id[which.max(grid_attr$sch)]))
+```
+### Importing of F&B
 
 ```{r}
-summary(grid_attr)
+fnb <- st_read(dsn = "Data/geospatial",
+                   layer = "F&B") %>%
+  st_transform(crs = 3414)
 ```
-#Spatial Interaction Modelling
-
-Spatial Interaction Modeling will be used to predict the flow of people & information between locations in the hexagonal grid. The models are based on the premise of the amount of interaction between two locations decreases as the distance between them increases, following a function known as a distance decay function
-
-## Finding Propulsive Attributes flow by their respective attributes
-### Flow by origin
 ```{r}
-# Origin
-attr_all <- grid_attr %>%
+grid_attr$fnb <- lengths(st_intersects(grid_sf, fnb))
+
+summary(grid_attr$fnb)
+
+message(paste("There are", sum(grid_attr$fnb), " FNB Services that occur in hexagons with bus stops", "with a maximum of", max(grid_attr$fnb), "within grid_id", grid_attr$grid_id[which.max(grid_attr$fnb)]))
+```
+
+## Check Propulsive and Attractive Attributes
+
+Check `grid_attr`
+
+```{r}
+grid_attr
+```
+
+# Spatial Interaction Modelling
+
+Select attributes relevant Propulsive Attributes and Attractive Attributes for Spatial Interaction Modelling
+
+```{r}
+attr <- grid_attr %>%
   st_drop_geometry() %>%
   mutate(
     grid_id = as.factor(grid_id)
   )
 ```
 
+### Flow by Origin
+
+Retain only propulsive attributes
 
 ```{r}
-attr_flow <- dist_pair %>%
-  mutate(
-    ori_grid = as.factor(ori_grid),
-     dest_grid= as.factor(dest_grid)
-  ) %>%
-  left_join(
-    attr_all,
+attr_flow <- left_join(
+  dist_pair,
+  attr,
   by = c("ori_grid" = "grid_id")) %>%
   rename(
-    ori_mrt_exit = mrt_exit_count,
-    ori_fnb = fnb,
+    ori_biz = biz,
     ori_hdb = hdb,
-    
+    ori_sch = sch,
+    ori_fnb = fnb,
+    ori_fs = fs,
+    ori_mrt_exit = mrt_exit_count
   ) %>%
   select(
-    -c(fs,biz,sch))
-
-```
-
-```{r}
-wdmp <- wdmp %>%
-  mutate(ori_grid = as.factor(ori_grid),
-         dest_grid = as.factor(dest_grid))
-
-attr_flow <- left_join(attr_flow, wdmp, by = c("ori_grid", "dest_grid"))
+    -c(ori_fs, ori_biz, ori_fnb))
 
 ```
 
@@ -690,28 +702,58 @@ attr_flow <- left_join(attr_flow, wdmp, by = c("ori_grid", "dest_grid"))
 Retain only attractive attributes
 
 ```{r}
-attr_flow <- attr_flow %>% 
-  left_join(
-  attr_all,
+attr_flow <- left_join(
+  attr_flow,
+  attr,
   by = c("dest_grid" = "grid_id")) %>%
   rename(
-    dest_fs = fs,
     dest_biz = biz,
+    dest_hdb = hdb,
     dest_sch = sch,
+    dest_fnb = fnb,
+    dest_fs = fs
   ) %>%
   select(
-    -c(mrt_exit_count,ori_fnb,ori_hdb)
+    -c(dest_sch, dest_hdb)
   )
+```
 
+### Add Trips
+
+```{r}
+attr_flow <- left_join(
+  attr_flow,
+  flow_data,
+  by = c("ori_grid", "dest_grid")) %>%
+  select(
+    -c(FlowNoIntra, offset)
+  )
+```
+
+### Remove NULL values
+
+There are some routes from ori_grid to desti_grid that have 0 or NULL trips. These will be removed
+
+```{r}
+attr_flow <- attr_flow %>%
+  filter(!is.na(TRIPS) & TRIPS != 0)
+```
+
+### Summary of attributes
+
+```{r}
 summary(attr_flow)
 ```
 
 ### Replacing 0 values
 
-```{r}
-update_cols <- c( "dest_fs", "hdb", "dest_sch", "ori_mrt_exit")
 
-# changing all 0 values to 0.99
+
+```{r}
+
+update_cols <- c( "ori_hdb","ori_sch" ,"dest_fs", "dest_biz","dest_fnb")
+
+# update all 0 values across columns
 attr_flow <- attr_flow %>%
   mutate(across(all_of(update_cols), ~ ifelse(. == 0, 0.9, .)))
 
@@ -719,14 +761,44 @@ summary(attr_flow)
 
 ```
 
-### Visualising correlation between propulsive factors and trips
+Save output indo rds
 
-## HDB and Trips Correlation
 ```{r}
+write_rds(attr_flow, "data/rds/sim_data.rds")
+```
+
+### Finding the Linear Correlation between Trips and Propulsiveness
+
+#### Train Station Exits
+
+```{r}
+
+p_res <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(ori_mrt_exit),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "grey",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Trips ~ MRT Exits")
+
+p_res
+```
+
+#### Residential Density
+
+```{r}
+
 p_hdb <- attr_flow %>%
       st_drop_geometry() %>%
       ggplot(
-        aes(x = log(hdb),
+        aes(x = log(ori_hdb),
             y = log(TRIPS))
       ) +
       geom_point(
@@ -736,59 +808,20 @@ p_hdb <- attr_flow %>%
       ) +
       geom_smooth(method = lm) +
       theme(axis.text.x = element_blank()) +
-      ggtitle("HDB and Trips correlation ")
+      ggtitle("Trips ~ Residential Density")
 
 p_hdb
-
 ```
-## MRT and Trips Correlation
+
+### Finding the Linear Correlation between Trips and Attractiveness
+
+#### F&B Establishments
+
 ```{r}
-p_mrt <- attr_flow %>%
+p_fnb <- attr_flow %>%
       st_drop_geometry() %>%
       ggplot(
-        aes(x = log(ori_mrt_exit),
-            y = log(TRIPS))
-      ) +
-      geom_point(
-        color = "green",
-        size = 1,
-        alpha = .7
-      ) +
-      geom_smooth(method = lm) +
-      theme(axis.text.x = element_blank()) +
-      ggtitle("MRT exit and Trips correlation ")
-
-p_mrt
-
-```
-### Visualising correlation between attractive factors and trips
-
-## Financial Services and Trips Correlation
-```{r}
-p_fs <- attr_flow %>%
-      st_drop_geometry() %>%
-      ggplot(
-        aes(x = log(dest_fs),
-            y = log(TRIPS))
-      ) +
-      geom_point(
-        color = "blue",
-        size = 1,
-        alpha = .7
-      ) +
-      geom_smooth(method = lm) +
-      theme(axis.text.x = element_blank()) +
-      ggtitle("Financial Services and Trips correlation ")
-
-p_fs
-
-```
-## Schools and Trips Correlation
-```{r}
-p_sch <- attr_flow %>%
-      st_drop_geometry() %>%
-      ggplot(
-        aes(x = log(dest_sch),
+        aes(x = log(dest_fnb),
             y = log(TRIPS))
       ) +
       geom_point(
@@ -798,15 +831,99 @@ p_sch <- attr_flow %>%
       ) +
       geom_smooth(method = lm) +
       theme(axis.text.x = element_blank()) +
-      ggtitle("Financial Services and Trips correlation ")
+      ggtitle("Trips ~ F&B")
 
-p_sch
+p_fnb
+```
+
+
+#### Financial Services
+
+```{r}
+p_fs <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(dest_fs),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "green",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Trips ~ Financial Services")
+
+p_fs
+```
+
+
+#### Businesses
+
+```{r}
+p_biz <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(dest_biz),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "purple",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Trips ~ Business")
+
+p_biz
+```
+
+
+## Regression Modelling
+### Multicollinearity checks
+To avoid using two or more predictor variables in the model that are highly correlated with each other, we will do a multicollinearity check.
+
+```{r}
+cor_matrix <- cor(attr_flow[, c("ori_mrt_exit","ori_hdb", "ori_sch", "dest_biz", "dest_fs", "dest_fnb", "TRIPS")])
+
+cor_matrix <- round(cor_matrix,2)
+melted_corr_matrix <- melt(cor_matrix)
+head(melted_corr_matrix)
+
+```
+```{r}
+# plotting the correlation heatmap
+ggplot(data = melted_corr_matrix, aes(x=Var1, y=Var2, 
+                                   fill=value)) + 
+geom_tile() +
+geom_text(aes(Var2, Var1, label = value), 
+          color = "white", size = 2.5) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
 
-The Scatterplots above reveal that there seems to be a positive correlation between:
+### Constrained SIM - Origin
+```{r}
+sum(attr_flow$euc_dist <= 0, na.rm = TRUE)
 
-- Number of schools and number of trips
-- Number of financial services and number of trips
-- Numbers of HDB houses and number of trips
- while MRT exits doesnt seem to have a noticeable trend.
+```
+
+
+###Code chunk for original SIM
+oriSIM <- glm(
+    formula = TRIPS 
+    ~ ori_grid + 
+      log(dest_fs) + 
+      log(dest_fnb) + 
+      log(euc_dist) - 1,
+    family = poisson(link = "log"),
+    data = attr_flow,
+           na.action = na.exclude)
+
+summary(oriSIM)
+
+Results
+
+Unfortunately, i wasn't able to resolve the issue of the above code chunk to get the SIM data in time. 
