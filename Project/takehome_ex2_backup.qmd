@@ -668,7 +668,8 @@ attr_flow <- dist_pair %>%
   rename(
     ori_mrt_exit = mrt_exit_count,
     ori_fnb = fnb,
-    ori_hdb = hdb
+    ori_hdb = hdb,
+    
   ) %>%
   select(
     -c(fs,biz,sch))
@@ -696,7 +697,7 @@ attr_flow <- attr_flow %>%
   rename(
     dest_fs = fs,
     dest_biz = biz,
-    dest_sch = sch
+    dest_sch = sch,
   ) %>%
   select(
     -c(mrt_exit_count,ori_fnb,ori_hdb)
@@ -708,10 +709,9 @@ summary(attr_flow)
 ### Replacing 0 values
 
 ```{r}
-# save columns as a vector
 update_cols <- c( "dest_fs", "hdb", "dest_sch", "ori_mrt_exit")
 
-# update all 0 values across columns
+# changing all 0 values to 0.99
 attr_flow <- attr_flow %>%
   mutate(across(all_of(update_cols), ~ ifelse(. == 0, 0.9, .)))
 
@@ -720,25 +720,93 @@ summary(attr_flow)
 ```
 
 ### Visualising correlation between propulsive factors and trips
+
+## HDB and Trips Correlation
 ```{r}
-p_res <- attr_flow %>%
+p_hdb <- attr_flow %>%
       st_drop_geometry() %>%
       ggplot(
         aes(x = log(hdb),
             y = log(TRIPS))
       ) +
       geom_point(
-        color = "#8D9EC6",
+        color = "red",
         size = 1,
         alpha = .7
       ) +
       geom_smooth(method = lm) +
       theme(axis.text.x = element_blank()) +
-      ggtitle("Trips ~ Residential Density")
+      ggtitle("HDB and Trips correlation ")
 
-p_res
+p_hdb
+
+```
+## MRT and Trips Correlation
+```{r}
+p_mrt <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(ori_mrt_exit),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "green",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("MRT exit and Trips correlation ")
+
+p_mrt
+
+```
+### Visualising correlation between attractive factors and trips
+
+## Financial Services and Trips Correlation
+```{r}
+p_fs <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(dest_fs),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "blue",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Financial Services and Trips correlation ")
+
+p_fs
+
+```
+## Schools and Trips Correlation
+```{r}
+p_sch <- attr_flow %>%
+      st_drop_geometry() %>%
+      ggplot(
+        aes(x = log(dest_sch),
+            y = log(TRIPS))
+      ) +
+      geom_point(
+        color = "orange",
+        size = 1,
+        alpha = .7
+      ) +
+      geom_smooth(method = lm) +
+      theme(axis.text.x = element_blank()) +
+      ggtitle("Financial Services and Trips correlation ")
+
+p_sch
 
 ```
 
-### Visualising correlation between propulsive factors and trips
+The Scatterplots above reveal that there seems to be a positive correlation between:
 
+- Number of schools and number of trips
+- Number of financial services and number of trips
+- Numbers of HDB houses and number of trips
+ while MRT exits doesnt seem to have a noticeable trend.

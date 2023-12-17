@@ -268,8 +268,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#flow-by-destination" id="toc-flow-by-destination" class="nav-link" data-scroll-target="#flow-by-destination">Flow by Destination</a></li>
   <li><a href="#replacing-0-values" id="toc-replacing-0-values" class="nav-link" data-scroll-target="#replacing-0-values">Replacing 0 values</a></li>
   <li><a href="#visualising-correlation-between-propulsive-factors-and-trips" id="toc-visualising-correlation-between-propulsive-factors-and-trips" class="nav-link" data-scroll-target="#visualising-correlation-between-propulsive-factors-and-trips">Visualising correlation between propulsive factors and trips</a></li>
-  <li><a href="#visualising-correlation-between-propulsive-factors-and-trips-1" id="toc-visualising-correlation-between-propulsive-factors-and-trips-1" class="nav-link" data-scroll-target="#visualising-correlation-between-propulsive-factors-and-trips-1">Visualising correlation between propulsive factors and trips</a></li>
   </ul></li>
+  <li><a href="#hdb-and-trips-correlation" id="toc-hdb-and-trips-correlation" class="nav-link" data-scroll-target="#hdb-and-trips-correlation">HDB and Trips Correlation</a></li>
+  <li><a href="#mrt-and-trips-correlation" id="toc-mrt-and-trips-correlation" class="nav-link" data-scroll-target="#mrt-and-trips-correlation">MRT and Trips Correlation</a>
+  <ul class="collapse">
+  <li><a href="#visualising-correlation-between-attractive-factors-and-trips" id="toc-visualising-correlation-between-attractive-factors-and-trips" class="nav-link" data-scroll-target="#visualising-correlation-between-attractive-factors-and-trips">Visualising correlation between attractive factors and trips</a></li>
+  </ul></li>
+  <li><a href="#financial-services-and-trips-correlation" id="toc-financial-services-and-trips-correlation" class="nav-link" data-scroll-target="#financial-services-and-trips-correlation">Financial Services and Trips Correlation</a></li>
+  <li><a href="#schools-and-trips-correlation" id="toc-schools-and-trips-correlation" class="nav-link" data-scroll-target="#schools-and-trips-correlation">Schools and Trips Correlation</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -1272,10 +1278,11 @@ Projected CRS: SVY21 / Singapore TM</code></pre>
 <span id="cb100-9"><a href="#cb100-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(</span>
 <span id="cb100-10"><a href="#cb100-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">ori_mrt_exit =</span> mrt_exit_count,</span>
 <span id="cb100-11"><a href="#cb100-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">ori_fnb =</span> fnb,</span>
-<span id="cb100-12"><a href="#cb100-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">ori_hdb =</span> hdb</span>
-<span id="cb100-13"><a href="#cb100-13" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
-<span id="cb100-14"><a href="#cb100-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
-<span id="cb100-15"><a href="#cb100-15" aria-hidden="true" tabindex="-1"></a>    <span class="sc">-</span><span class="fu">c</span>(fs,biz,sch))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb100-12"><a href="#cb100-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">ori_hdb =</span> hdb,</span>
+<span id="cb100-13"><a href="#cb100-13" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb100-14"><a href="#cb100-14" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb100-15"><a href="#cb100-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
+<span id="cb100-16"><a href="#cb100-16" aria-hidden="true" tabindex="-1"></a>    <span class="sc">-</span><span class="fu">c</span>(fs,biz,sch))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb101"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a>wdmp <span class="ot">&lt;-</span> wdmp <span class="sc">%&gt;%</span></span>
@@ -1296,7 +1303,7 @@ Projected CRS: SVY21 / Singapore TM</code></pre>
 <span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(</span>
 <span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">dest_fs =</span> fs,</span>
 <span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">dest_biz =</span> biz,</span>
-<span id="cb102-8"><a href="#cb102-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">dest_sch =</span> sch</span>
+<span id="cb102-8"><a href="#cb102-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">dest_sch =</span> sch,</span>
 <span id="cb102-9"><a href="#cb102-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
 <span id="cb102-10"><a href="#cb102-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
 <span id="cb102-11"><a href="#cb102-11" aria-hidden="true" tabindex="-1"></a>    <span class="sc">-</span><span class="fu">c</span>(mrt_exit_count,ori_fnb,ori_hdb)</span>
@@ -1366,14 +1373,13 @@ Projected CRS: SVY21 / Singapore TM</code></pre>
 <section id="replacing-0-values" class="level3">
 <h3 class="anchored" data-anchor-id="replacing-0-values">Replacing 0 values</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb104"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="co"># save columns as a vector</span></span>
-<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a>update_cols <span class="ot">&lt;-</span> <span class="fu">c</span>( <span class="st">"dest_fs"</span>, <span class="st">"hdb"</span>, <span class="st">"dest_sch"</span>, <span class="st">"ori_mrt_exit"</span>)</span>
-<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a><span class="co"># update all 0 values across columns</span></span>
-<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>attr_flow <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
-<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(update_cols), <span class="sc">~</span> <span class="fu">ifelse</span>(. <span class="sc">==</span> <span class="dv">0</span>, <span class="fl">0.9</span>, .)))</span>
-<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb104-8"><a href="#cb104-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(attr_flow)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb104"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a>update_cols <span class="ot">&lt;-</span> <span class="fu">c</span>( <span class="st">"dest_fs"</span>, <span class="st">"hdb"</span>, <span class="st">"dest_sch"</span>, <span class="st">"ori_mrt_exit"</span>)</span>
+<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a><span class="co"># changing all 0 values to 0.99</span></span>
+<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a>attr_flow <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
+<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(update_cols), <span class="sc">~</span> <span class="fu">ifelse</span>(. <span class="sc">==</span> <span class="dv">0</span>, <span class="fl">0.9</span>, .)))</span>
+<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(attr_flow)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>    ori_grid          dest_grid           distance      ori_mrt_exit   
  1990   :    5278   2010   :    5762   Min.   :  100   Min.   : 0.900  
@@ -1436,33 +1442,114 @@ Projected CRS: SVY21 / Singapore TM</code></pre>
 </section>
 <section id="visualising-correlation-between-propulsive-factors-and-trips" class="level3">
 <h3 class="anchored" data-anchor-id="visualising-correlation-between-propulsive-factors-and-trips">Visualising correlation between propulsive factors and trips</h3>
+</section>
+</section>
+<section id="hdb-and-trips-correlation" class="level2">
+<h2 class="anchored" data-anchor-id="hdb-and-trips-correlation">HDB and Trips Correlation</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb106"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a>p_res <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
+<div class="sourceCode cell-code" id="cb106"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a>p_hdb <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
 <span id="cb106-2"><a href="#cb106-2" aria-hidden="true" tabindex="-1"></a>      <span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span></span>
 <span id="cb106-3"><a href="#cb106-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggplot</span>(</span>
 <span id="cb106-4"><a href="#cb106-4" aria-hidden="true" tabindex="-1"></a>        <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">log</span>(hdb),</span>
 <span id="cb106-5"><a href="#cb106-5" aria-hidden="true" tabindex="-1"></a>            <span class="at">y =</span> <span class="fu">log</span>(TRIPS))</span>
 <span id="cb106-6"><a href="#cb106-6" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
 <span id="cb106-7"><a href="#cb106-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_point</span>(</span>
-<span id="cb106-8"><a href="#cb106-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"#8D9EC6"</span>,</span>
+<span id="cb106-8"><a href="#cb106-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"red"</span>,</span>
 <span id="cb106-9"><a href="#cb106-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">size =</span> <span class="dv">1</span>,</span>
 <span id="cb106-10"><a href="#cb106-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">alpha =</span> .<span class="dv">7</span></span>
 <span id="cb106-11"><a href="#cb106-11" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
 <span id="cb106-12"><a href="#cb106-12" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_smooth</span>(<span class="at">method =</span> lm) <span class="sc">+</span></span>
 <span id="cb106-13"><a href="#cb106-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_blank</span>()) <span class="sc">+</span></span>
-<span id="cb106-14"><a href="#cb106-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggtitle</span>(<span class="st">"Trips ~ Residential Density"</span>)</span>
+<span id="cb106-14"><a href="#cb106-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggtitle</span>(<span class="st">"HDB and Trips correlation "</span>)</span>
 <span id="cb106-15"><a href="#cb106-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb106-16"><a href="#cb106-16" aria-hidden="true" tabindex="-1"></a>p_res</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb106-16"><a href="#cb106-16" aria-hidden="true" tabindex="-1"></a>p_hdb</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <p><img src="takehome_ex2_backup_files/figure-html/unnamed-chunk-59-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
 </section>
-<section id="visualising-correlation-between-propulsive-factors-and-trips-1" class="level3">
-<h3 class="anchored" data-anchor-id="visualising-correlation-between-propulsive-factors-and-trips-1">Visualising correlation between propulsive factors and trips</h3>
-
-
+<section id="mrt-and-trips-correlation" class="level2">
+<h2 class="anchored" data-anchor-id="mrt-and-trips-correlation">MRT and Trips Correlation</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb107"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a>p_mrt <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
+<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a>      <span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggplot</span>(</span>
+<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a>        <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">log</span>(ori_mrt_exit),</span>
+<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a>            <span class="at">y =</span> <span class="fu">log</span>(TRIPS))</span>
+<span id="cb107-6"><a href="#cb107-6" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb107-7"><a href="#cb107-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_point</span>(</span>
+<span id="cb107-8"><a href="#cb107-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"green"</span>,</span>
+<span id="cb107-9"><a href="#cb107-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">size =</span> <span class="dv">1</span>,</span>
+<span id="cb107-10"><a href="#cb107-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">alpha =</span> .<span class="dv">7</span></span>
+<span id="cb107-11"><a href="#cb107-11" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb107-12"><a href="#cb107-12" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_smooth</span>(<span class="at">method =</span> lm) <span class="sc">+</span></span>
+<span id="cb107-13"><a href="#cb107-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_blank</span>()) <span class="sc">+</span></span>
+<span id="cb107-14"><a href="#cb107-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggtitle</span>(<span class="st">"MRT exit and Trips correlation "</span>)</span>
+<span id="cb107-15"><a href="#cb107-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb107-16"><a href="#cb107-16" aria-hidden="true" tabindex="-1"></a>p_mrt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="takehome_ex2_backup_files/figure-html/unnamed-chunk-60-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<section id="visualising-correlation-between-attractive-factors-and-trips" class="level3">
+<h3 class="anchored" data-anchor-id="visualising-correlation-between-attractive-factors-and-trips">Visualising correlation between attractive factors and trips</h3>
 </section>
+</section>
+<section id="financial-services-and-trips-correlation" class="level2">
+<h2 class="anchored" data-anchor-id="financial-services-and-trips-correlation">Financial Services and Trips Correlation</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb108"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb108-1"><a href="#cb108-1" aria-hidden="true" tabindex="-1"></a>p_fs <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
+<span id="cb108-2"><a href="#cb108-2" aria-hidden="true" tabindex="-1"></a>      <span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb108-3"><a href="#cb108-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggplot</span>(</span>
+<span id="cb108-4"><a href="#cb108-4" aria-hidden="true" tabindex="-1"></a>        <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">log</span>(dest_fs),</span>
+<span id="cb108-5"><a href="#cb108-5" aria-hidden="true" tabindex="-1"></a>            <span class="at">y =</span> <span class="fu">log</span>(TRIPS))</span>
+<span id="cb108-6"><a href="#cb108-6" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb108-7"><a href="#cb108-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_point</span>(</span>
+<span id="cb108-8"><a href="#cb108-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"blue"</span>,</span>
+<span id="cb108-9"><a href="#cb108-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">size =</span> <span class="dv">1</span>,</span>
+<span id="cb108-10"><a href="#cb108-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">alpha =</span> .<span class="dv">7</span></span>
+<span id="cb108-11"><a href="#cb108-11" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb108-12"><a href="#cb108-12" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_smooth</span>(<span class="at">method =</span> lm) <span class="sc">+</span></span>
+<span id="cb108-13"><a href="#cb108-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_blank</span>()) <span class="sc">+</span></span>
+<span id="cb108-14"><a href="#cb108-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggtitle</span>(<span class="st">"Financial Services and Trips correlation "</span>)</span>
+<span id="cb108-15"><a href="#cb108-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb108-16"><a href="#cb108-16" aria-hidden="true" tabindex="-1"></a>p_fs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="takehome_ex2_backup_files/figure-html/unnamed-chunk-61-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="schools-and-trips-correlation" class="level2">
+<h2 class="anchored" data-anchor-id="schools-and-trips-correlation">Schools and Trips Correlation</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb109"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a>p_sch <span class="ot">&lt;-</span> attr_flow <span class="sc">%&gt;%</span></span>
+<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a>      <span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb109-3"><a href="#cb109-3" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggplot</span>(</span>
+<span id="cb109-4"><a href="#cb109-4" aria-hidden="true" tabindex="-1"></a>        <span class="fu">aes</span>(<span class="at">x =</span> <span class="fu">log</span>(dest_sch),</span>
+<span id="cb109-5"><a href="#cb109-5" aria-hidden="true" tabindex="-1"></a>            <span class="at">y =</span> <span class="fu">log</span>(TRIPS))</span>
+<span id="cb109-6"><a href="#cb109-6" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb109-7"><a href="#cb109-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_point</span>(</span>
+<span id="cb109-8"><a href="#cb109-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">color =</span> <span class="st">"orange"</span>,</span>
+<span id="cb109-9"><a href="#cb109-9" aria-hidden="true" tabindex="-1"></a>        <span class="at">size =</span> <span class="dv">1</span>,</span>
+<span id="cb109-10"><a href="#cb109-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">alpha =</span> .<span class="dv">7</span></span>
+<span id="cb109-11"><a href="#cb109-11" aria-hidden="true" tabindex="-1"></a>      ) <span class="sc">+</span></span>
+<span id="cb109-12"><a href="#cb109-12" aria-hidden="true" tabindex="-1"></a>      <span class="fu">geom_smooth</span>(<span class="at">method =</span> lm) <span class="sc">+</span></span>
+<span id="cb109-13"><a href="#cb109-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_blank</span>()) <span class="sc">+</span></span>
+<span id="cb109-14"><a href="#cb109-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">ggtitle</span>(<span class="st">"Financial Services and Trips correlation "</span>)</span>
+<span id="cb109-15"><a href="#cb109-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb109-16"><a href="#cb109-16" aria-hidden="true" tabindex="-1"></a>p_sch</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="takehome_ex2_backup_files/figure-html/unnamed-chunk-62-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>The Scatterplots above reveal that there seems to be a positive correlation between:</p>
+<ul>
+<li>Number of schools and number of trips</li>
+<li>Number of financial services and number of trips</li>
+<li>Numbers of HDB houses and number of trips while MRT exits doesnt seem to have a noticeable trend.</li>
+</ul>
+
+
 </section>
 </section>
 
